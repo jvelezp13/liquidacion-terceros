@@ -27,6 +27,7 @@ interface ContratistasTableProps {
   onDelete: (contratista: LiqContratista) => void
   onToggleActivo: (contratista: LiqContratista) => void
   isLoading?: boolean
+  canEdit?: boolean
 }
 
 export function ContratistasTable({
@@ -35,6 +36,7 @@ export function ContratistasTable({
   onDelete,
   onToggleActivo,
   isLoading = false,
+  canEdit = true,
 }: ContratistasTableProps) {
   const getTipoDocumentoLabel = (tipo: string) => {
     const option = tipoDocumentoOptions.find((o) => o.value === tipo)
@@ -97,16 +99,16 @@ export function ContratistasTable({
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" disabled={isLoading}>
+                    <Button variant="ghost" size="icon" disabled={isLoading || !canEdit}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEdit(contratista)}>
+                    <DropdownMenuItem onClick={() => onEdit(contratista)} disabled={!canEdit}>
                       <Pencil className="mr-2 h-4 w-4" />
                       Editar
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onToggleActivo(contratista)}>
+                    <DropdownMenuItem onClick={() => onToggleActivo(contratista)} disabled={!canEdit}>
                       {contratista.activo ? (
                         <>
                           <PowerOff className="mr-2 h-4 w-4" />
@@ -123,6 +125,7 @@ export function ContratistasTable({
                     <DropdownMenuItem
                       onClick={() => onDelete(contratista)}
                       className="text-destructive"
+                      disabled={!canEdit}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Eliminar

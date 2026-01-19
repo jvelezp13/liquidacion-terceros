@@ -7,13 +7,17 @@ import { Badge } from '@/components/ui/badge'
 import { Loader2, Calendar, ArrowRight, ClipboardCheck } from 'lucide-react'
 import { useQuincenasPorEstado, formatearQuincena, getNombreMes } from '@/lib/hooks/use-quincenas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
+import { useCanEdit } from '@/lib/hooks/use-tenant'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ShieldAlert } from 'lucide-react'
 
 export default function ValidacionPage() {
   const { data: escenario, isLoading: escenarioLoading } = useEscenarioActivo()
   const { data: quincenasBorrador = [], isLoading: borradorLoading } = useQuincenasPorEstado('borrador')
   const { data: quincenasValidado = [], isLoading: validadoLoading } = useQuincenasPorEstado('validado')
+  const { hasRole: canEdit, isLoading: permisosLoading } = useCanEdit()
 
-  const isLoading = escenarioLoading || borradorLoading || validadoLoading
+  const isLoading = escenarioLoading || borradorLoading || validadoLoading || permisosLoading
 
   // Formatear fecha
   const formatFecha = (fecha: string) => {
@@ -44,6 +48,17 @@ export default function ValidacionPage() {
           Valida las rutas ejecutadas dia a dia
         </p>
       </div>
+
+      {/* Alerta de permisos si es viewer */}
+      {!canEdit && (
+        <Alert>
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Solo lectura</AlertTitle>
+          <AlertDescription>
+            No tienes permisos para validar rutas. Contacta al administrador si necesitas editar.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Quincenas pendientes de validación */}
       <Card>

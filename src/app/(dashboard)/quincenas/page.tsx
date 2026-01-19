@@ -32,6 +32,7 @@ import {
   formatearQuincena,
 } from '@/lib/hooks/use-quincenas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
+import { useCanEdit } from '@/lib/hooks/use-tenant'
 import type { LiqQuincena, EstadoQuincena } from '@/types/database.types'
 import type { QuincenaFormData } from '@/lib/validations/quincena'
 
@@ -41,6 +42,7 @@ export default function QuincenasPage() {
 
   const { data: escenario, isLoading: escenarioLoading } = useEscenarioActivo()
   const { data: quincenas = [], isLoading: quincenasLoading } = useQuincenas()
+  const { hasRole: canEdit } = useCanEdit()
 
   const createMutation = useCreateQuincena()
   const updateEstadoMutation = useUpdateEstadoQuincena()

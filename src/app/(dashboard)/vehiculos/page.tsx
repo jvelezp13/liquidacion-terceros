@@ -32,6 +32,7 @@ import {
 } from '@/lib/hooks/use-vehiculos-terceros'
 import { useContratistasActivos } from '@/lib/hooks/use-contratistas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
+import { useCanEdit } from '@/lib/hooks/use-tenant'
 import type { LiqVehiculoTerceroConDetalles } from '@/types/database.types'
 import type { VehiculoTerceroFormData } from '@/lib/validations/vehiculo-tercero'
 
@@ -44,6 +45,7 @@ export default function VehiculosPage() {
   const { data: vehiculosTerceros = [], isLoading: vehiculosLoading, refetch: refetchVehiculos } = useVehiculosTerceros()
   const { data: vehiculosSinVincular = [], isLoading: sinVincularLoading, refetch: refetchSinVincular } = useVehiculosTercerosSinVincular()
   const { data: contratistas = [], isLoading: contratistasLoading } = useContratistasActivos()
+  const { hasRole: canEdit } = useCanEdit()
 
   const createMutation = useCreateVehiculoTercero()
   const updateMutation = useUpdateVehiculoTercero()

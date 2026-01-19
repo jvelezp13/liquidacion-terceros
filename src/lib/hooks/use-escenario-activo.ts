@@ -2,20 +2,27 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { useActiveTenant } from './use-tenant'
 import type { Escenario } from '@/types/database.types'
 
 // Hook para obtener el escenario activo de Planeación Logi
+// Filtra por el tenant activo del usuario
 export function useEscenarioActivo() {
   const supabase = createClient()
+  const { data: tenant, isLoading: loadingTenant } = useActiveTenant()
 
   return useQuery({
-    queryKey: ['escenario-activo'],
+    queryKey: ['escenario-activo', tenant?.id],
     queryFn: async (): Promise<Escenario | null> => {
+      if (!tenant?.id) return null
+
+      // Buscar el escenario activo del tenant actual
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('escenarios')
         .select('*')
         .eq('activo', true)
+        .eq('tenant_id', tenant.id)
         .single()
 
       if (error) {
@@ -28,6 +35,8 @@ export function useEscenarioActivo() {
 
       return data as Escenario
     },
+    // Solo ejecutar cuando tengamos el tenant
+    enabled: !loadingTenant && !!tenant?.id,
   })
 }
 

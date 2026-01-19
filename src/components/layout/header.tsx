@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { TenantSelector } from './tenant-selector'
 
 interface HeaderProps {
   title?: string
@@ -27,13 +28,20 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
-      <div>
+      <div className="flex items-center gap-4">
         {title && (
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
         )}
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Selector de empresa */}
+        <TenantSelector />
+
+        {/* Separador */}
+        <div className="h-6 w-px bg-gray-200" />
+
+        {/* Menu de usuario */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -43,7 +51,7 @@ export function Header({ title }: HeaderProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
-              Cerrar sesión
+              Cerrar sesion
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

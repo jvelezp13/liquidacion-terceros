@@ -31,6 +31,7 @@ import {
   useToggleContratistaActivo,
 } from '@/lib/hooks/use-contratistas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
+import { useCanEdit } from '@/lib/hooks/use-tenant'
 import type { LiqContratista } from '@/types/database.types'
 import type { ContratistaFormData } from '@/lib/validations/contratista'
 
@@ -41,6 +42,7 @@ export default function ContratistasPage() {
 
   const { data: escenario, isLoading: escenarioLoading } = useEscenarioActivo()
   const { data: contratistas = [], isLoading: contratistasLoading } = useContratistas()
+  const { hasRole: canEdit } = useCanEdit()
 
   const createMutation = useCreateContratista()
   const updateMutation = useUpdateContratista()
@@ -158,7 +160,7 @@ export default function ContratistasPage() {
             Gestiona los propietarios de vehiculos terceros
           </p>
         </div>
-        <Button onClick={handleCreate} disabled={isLoading}>
+        <Button onClick={handleCreate} disabled={isLoading || !canEdit}>
           <Plus className="mr-2 h-4 w-4" />
           Nuevo Contratista
         </Button>
@@ -183,6 +185,7 @@ export default function ContratistasPage() {
               onDelete={handleDelete}
               onToggleActivo={handleToggleActivo}
               isLoading={isMutating}
+              canEdit={canEdit}
             />
           )}
         </CardContent>
