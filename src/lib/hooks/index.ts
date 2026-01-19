@@ -21,3 +21,6 @@ export * from './use-viajes-ejecutados'
 
 // Liquidaciones
 export * from './use-liquidaciones'
+
+// Historial de Pagos
+export * from './use-historial-pagos'
