@@ -16,14 +16,39 @@ export interface Tenant {
   updated_at: string
 }
 
+// Roles del sistema
+// Nota: 'logistica' tiene permisos de editor en Liquidacion de Terceros
+export type RolTenant = 'admin' | 'editor' | 'viewer' | 'logistica'
+
 export interface TenantUser {
   id: string
   tenant_id: string
   user_id: string
-  rol: 'admin' | 'editor' | 'viewer'
+  rol: RolTenant
   tenant_activo: boolean
   created_at: string
   tenant?: Tenant
+}
+
+// Tipo para el tenant activo con datos de rol
+export interface ActiveTenant extends Tenant {
+  rol: RolTenant
+  tenantUserId: string
+}
+
+// Tipo para tenant en lista de usuario
+export interface UserTenantItem extends ActiveTenant {
+  isActive: boolean
+}
+
+// Tipo para respuesta de query con tenant
+interface TenantUserWithTenant {
+  id: string
+  user_id: string
+  tenant_id: string
+  rol: string
+  tenant_activo: boolean
+  tenant: Tenant | null
 }
 
 /**
@@ -32,15 +57,18 @@ export interface TenantUser {
 export function useActiveTenant() {
   const supabase = createClient()
 
-  return useQuery({
+  return useQuery<ActiveTenant | null>({
     queryKey: ['tenants', 'active'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ActiveTenant | null> => {
       // Obtener el usuario actual
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return null
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any
+
       // Buscar el tenant activo del usuario
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('tenant_users')
         .select(`
           *,
@@ -53,11 +81,12 @@ export function useActiveTenant() {
       if (error && error.code !== 'PGRST116') throw error
 
       // Retornar el tenant con los datos del TenantUser
-      if (data && data.tenant) {
+      const tenantUser = data as TenantUserWithTenant | null
+      if (tenantUser && tenantUser.tenant) {
         return {
-          ...data.tenant,
-          rol: data.rol as 'admin' | 'editor' | 'viewer',
-          tenantUserId: data.id,
+          ...tenantUser.tenant,
+          rol: tenantUser.rol as RolTenant,
+          tenantUserId: tenantUser.id,
         }
       }
 
@@ -72,13 +101,16 @@ export function useActiveTenant() {
 export function useUserTenants() {
   const supabase = createClient()
 
-  return useQuery({
+  return useQuery<UserTenantItem[]>({
     queryKey: ['tenants', 'user'],
-    queryFn: async () => {
+    queryFn: async (): Promise<UserTenantItem[]> => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any
+
+      const { data, error } = await client
         .from('tenant_users')
         .select(`
           *,
@@ -90,12 +122,15 @@ export function useUserTenants() {
       if (error) throw error
 
       // Mapear para retornar tenants con info del usuario
-      return (data || []).map(tu => ({
-        ...tu.tenant as Tenant,
-        rol: tu.rol as 'admin' | 'editor' | 'viewer',
-        tenantUserId: tu.id,
-        isActive: tu.tenant_activo,
-      }))
+      const tenantUsers = (data || []) as TenantUserWithTenant[]
+      return tenantUsers
+        .filter(tu => tu.tenant !== null)
+        .map(tu => ({
+          ...tu.tenant!,
+          rol: tu.rol as RolTenant,
+          tenantUserId: tu.id,
+          isActive: tu.tenant_activo,
+        }))
     },
   })
 }
@@ -112,8 +147,11 @@ export function useSetActiveTenant() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuario no autenticado')
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any
+
       // Desactivar todos los tenants del usuario
-      const { error: deactivateError } = await supabase
+      const { error: deactivateError } = await client
         .from('tenant_users')
         .update({ tenant_activo: false })
         .eq('user_id', user.id)
@@ -121,7 +159,7 @@ export function useSetActiveTenant() {
       if (deactivateError) throw deactivateError
 
       // Activar el tenant seleccionado
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('tenant_users')
         .update({ tenant_activo: true })
         .eq('user_id', user.id)
@@ -133,7 +171,7 @@ export function useSetActiveTenant() {
         .single()
 
       if (error) throw error
-      return data
+      return data as TenantUserWithTenant
     },
     onSuccess: () => {
       // Invalidar todas las queries relacionadas con datos del tenant
@@ -148,12 +186,19 @@ export function useSetActiveTenant() {
 
 /**
  * Verifica si el usuario tiene un rol especifico o superior
- * admin > editor > viewer
+ * admin > editor = logistica > viewer
+ * Nota: En Liquidacion de Terceros, 'logistica' tiene los mismos permisos que 'editor'
  */
 export function useHasRole(requiredRole: 'admin' | 'editor' | 'viewer') {
   const { data: tenant, isLoading } = useActiveTenant()
 
-  const roleHierarchy = { admin: 3, editor: 2, viewer: 1 }
+  // logistica tiene nivel de editor en Liquidacion de Terceros
+  const roleHierarchy: Record<RolTenant, number> = {
+    admin: 3,
+    editor: 2,
+    logistica: 2, // Mismo nivel que editor
+    viewer: 1,
+  }
 
   const hasRole = tenant
     ? roleHierarchy[tenant.rol] >= roleHierarchy[requiredRole]

@@ -11,20 +11,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { useActiveTenant, useUserTenants, useSetActiveTenant } from '@/lib/hooks/use-tenant'
+import { useActiveTenant, useUserTenants, useSetActiveTenant, type RolTenant } from '@/lib/hooks/use-tenant'
 import { toast } from 'sonner'
 
 // Colores para los badges de rol
-const rolColors = {
+const rolColors: Record<RolTenant, string> = {
   admin: 'bg-purple-100 text-purple-700',
   editor: 'bg-blue-100 text-blue-700',
   viewer: 'bg-gray-100 text-gray-700',
+  logistica: 'bg-green-100 text-green-700',
 }
 
-const rolLabels = {
+const rolLabels: Record<RolTenant, string> = {
   admin: 'Admin',
   editor: 'Editor',
   viewer: 'Viewer',
+  logistica: 'Logistica',
 }
 
 export function TenantSelector() {
