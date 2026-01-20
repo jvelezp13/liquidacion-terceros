@@ -24,26 +24,36 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     let isMounted = true
 
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (isMounted) {
+    // Escuchar cambios de autenticacion (cuando Supabase procesa el token del email)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setValidSession(true)
+      } else if (event === 'SIGNED_IN' && session) {
+        // A veces llega como SIGNED_IN en lugar de PASSWORD_RECOVERY
+        setValidSession(true)
+      } else if (event === 'INITIAL_SESSION') {
+        // Sesion inicial - verificar si hay sesion activa
         setValidSession(!!session)
       }
-    }
-    checkSession()
-
-    // Escuchar cambios de autenticacion (cuando Supabase procesa el token del email)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY' && isMounted) {
-        setValidSession(true)
-      }
     })
+
+    // Verificar sesion existente despues de un momento (para dar tiempo al procesamiento del token)
+    const timeout = setTimeout(async () => {
+      if (!isMounted) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (isMounted && validSession === null) {
+        setValidSession(!!session)
+      }
+    }, 1000)
 
     return () => {
       isMounted = false
       subscription.unsubscribe()
+      clearTimeout(timeout)
     }
-  }, [supabase.auth])
+  }, [supabase.auth, validSession])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
