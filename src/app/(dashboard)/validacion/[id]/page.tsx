@@ -226,186 +226,135 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const isUpdating = updateEstadoViajeMutation.isPending || updateEstadoViajeConVariacionMutation.isPending
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button asChild variant="ghost" size="icon">
+    <div className="space-y-3">
+      {/* Header compacto */}
+      <div className="flex items-center gap-3">
+        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
           <Link href="/validacion">
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{formatearQuincena(quincena)}</h1>
-          <p className="text-muted-foreground">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold truncate">{formatearQuincena(quincena)}</h1>
+            <Badge variant={quincena.estado === 'borrador' ? 'secondary' : 'default'} className="text-xs">
+              {quincena.estado.charAt(0).toUpperCase() + quincena.estado.slice(1)}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
             {quincena.fecha_inicio} al {quincena.fecha_fin}
           </p>
         </div>
-        <Badge variant={quincena.estado === 'borrador' ? 'secondary' : 'default'}>
-          {quincena.estado.charAt(0).toUpperCase() + quincena.estado.slice(1)}
-        </Badge>
-      </div>
-
-      {/* Acciones */}
-      {esEditable && (
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleGenerarViajes}
-            disabled={generarViajesMutation.isPending}
-          >
-            {generarViajesMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            Generar viajes desde rutas
-          </Button>
-          {estadisticas.pendientes === 0 && estadisticas.total > 0 && (
-            <Button onClick={() => setConfirmValidar(true)}>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Marcar como validado
+        {/* Acciones en el header */}
+        {esEditable && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGenerarViajes}
+              disabled={generarViajesMutation.isPending}
+            >
+              {generarViajesMutation.isPending ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 h-3 w-3" />
+              )}
+              Generar viajes
             </Button>
-          )}
-        </div>
-      )}
-
-      {/* Estadísticas */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{estadisticas.total}</div>
-            <p className="text-sm text-muted-foreground">Viajes programados</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-2xl font-bold text-green-600">{estadisticas.ejecutados}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Ejecutados</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Route className="h-5 w-5 text-blue-500" />
-              <span className="text-2xl font-bold text-blue-600">{estadisticas.variacion}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Otra ruta</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-500" />
-              <span className="text-2xl font-bold text-red-600">{estadisticas.noEjecutados}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">No salieron</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-              <span className="text-2xl font-bold">{estadisticas.pendientes}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Pendientes</p>
-          </CardContent>
-        </Card>
+            {estadisticas.pendientes === 0 && estadisticas.total > 0 && (
+              <Button size="sm" onClick={() => setConfirmValidar(true)}>
+                <CheckCircle className="mr-1 h-3 w-3" />
+                Validar
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs para cambiar vista */}
       <Tabs value={vistaActiva} onValueChange={(v) => setVistaActiva(v as 'dia' | 'vehiculo')}>
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
-          <TabsTrigger value="dia" className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4" />
+        <TabsList className="h-8">
+          <TabsTrigger value="dia" className="flex items-center gap-1.5 text-xs px-3">
+            <CalendarDays className="h-3.5 w-3.5" />
             Por Día
           </TabsTrigger>
-          <TabsTrigger value="vehiculo" className="flex items-center gap-2">
-            <Truck className="h-4 w-4" />
+          <TabsTrigger value="vehiculo" className="flex items-center gap-1.5 text-xs px-3">
+            <Truck className="h-3.5 w-3.5" />
             Por Vehículo
           </TabsTrigger>
         </TabsList>
 
         {/* Vista por Día */}
-        <TabsContent value="dia" className="mt-4">
-          <div className="grid gap-6 lg:grid-cols-2">
+        <TabsContent value="dia" className="mt-3">
+          <div className="grid gap-4 lg:grid-cols-[3fr_7fr]">
             {/* Calendario compacto */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Calendario
-                </CardTitle>
-                <CardDescription>
-                  Selecciona un día para ver y validar los viajes
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CalendarioCompacto
-                  fechaInicio={quincena.fecha_inicio}
-                  fechaFin={quincena.fecha_fin}
-                  viajes={viajes}
-                  fechaSeleccionada={fechaSeleccionada}
-                  onSelectFecha={setFechaSeleccionada}
-                />
-              </CardContent>
+            <Card className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Calendario</span>
+              </div>
+              <CalendarioCompacto
+                fechaInicio={quincena.fecha_inicio}
+                fechaFin={quincena.fecha_fin}
+                viajes={viajes}
+                fechaSeleccionada={fechaSeleccionada}
+                onSelectFecha={setFechaSeleccionada}
+              />
             </Card>
 
             {/* Lista de viajes del día seleccionado */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Truck className="h-5 w-5" />
-                  Viajes del día
-                </CardTitle>
-                <CardDescription>
+            <Card className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Truck className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
                   {fechaSeleccionada
                     ? new Date(fechaSeleccionada + 'T00:00:00').toLocaleDateString('es-CO', {
                         weekday: 'long',
                         day: 'numeric',
                         month: 'long',
                       })
-                    : 'Selecciona un día para ver los viajes'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!fechaSeleccionada ? (
-                  <div className="flex h-48 items-center justify-center text-muted-foreground">
-                    Selecciona un día en el calendario
-                  </div>
-                ) : viajesFechaSeleccionada.length === 0 ? (
-                  <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <Truck className="h-8 w-8" />
-                    <p>No hay viajes programados para este día</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                    {viajesFechaSeleccionada.map((viaje) => (
-                      <TarjetaViaje
-                        key={viaje.id}
-                        viaje={viaje}
-                        rutas={rutas}
-                        onCambiarEstado={(estado) =>
-                          handleCambiarEstadoViaje(viaje.id, estado, resolvedParams.id)
-                        }
-                        onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
-                          handleCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, resolvedParams.id)
-                        }
-                        isUpdating={isUpdating}
-                        disabled={!esEditable}
-                      />
-                    ))}
-                  </div>
+                    : 'Viajes del día'}
+                </span>
+                {fechaSeleccionada && viajesFechaSeleccionada.length > 0 && (
+                  <Badge variant="secondary" className="text-xs ml-auto">
+                    {viajesFechaSeleccionada.length} viajes
+                  </Badge>
                 )}
-              </CardContent>
+              </div>
+              {!fechaSeleccionada ? (
+                <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
+                  Selecciona un día en el calendario
+                </div>
+              ) : viajesFechaSeleccionada.length === 0 ? (
+                <div className="flex h-32 flex-col items-center justify-center gap-1 text-muted-foreground">
+                  <Truck className="h-6 w-6" />
+                  <p className="text-sm">No hay viajes para este día</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {viajesFechaSeleccionada.map((viaje) => (
+                    <TarjetaViaje
+                      key={viaje.id}
+                      viaje={viaje}
+                      rutas={rutas}
+                      onCambiarEstado={(estado) =>
+                        handleCambiarEstadoViaje(viaje.id, estado, resolvedParams.id)
+                      }
+                      onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
+                        handleCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, resolvedParams.id)
+                      }
+                      isUpdating={isUpdating}
+                      disabled={!esEditable}
+                    />
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
         </TabsContent>
 
         {/* Vista por Vehículo */}
-        <TabsContent value="vehiculo" className="mt-4">
+        <TabsContent value="vehiculo" className="mt-3">
           <VistaPorVehiculo
             viajes={viajes}
             rutas={rutas}

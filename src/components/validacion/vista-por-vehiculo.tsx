@@ -114,7 +114,7 @@ export function VistaPorVehiculo({
   }, [vehiculoSeleccionado, vehiculosConStats])
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[35fr_65fr]">
       {/* Panel izquierdo: Lista de vehículos */}
       <Card>
         <CardHeader className="pb-2">
