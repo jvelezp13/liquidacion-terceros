@@ -14,8 +14,13 @@ export interface ViajeEjecutadoConDetalles extends LiqViajeEjecutado {
   vehiculo_tercero: LiqVehiculoTercero & {
     placa: string
     conductor_nombre: string | null
+    contratista?: {
+      id: string
+      nombre: string
+    }
   }
   ruta?: RutaLogistica
+  ruta_variacion?: RutaLogistica // Ruta que se ejecutó en lugar de la programada
 }
 
 // Tipo para crear/actualizar viaje
@@ -34,13 +39,12 @@ export interface UpsertViajeInput {
   notas?: string
 }
 
-// Estados de viaje con labels
+// Estados de viaje con labels (sin 'parcial' - eliminado)
 export const estadosViaje = [
   { value: 'pendiente', label: 'Pendiente', color: 'secondary' },
   { value: 'ejecutado', label: 'Ejecutado', color: 'default' },
-  { value: 'parcial', label: 'Parcial', color: 'warning' },
-  { value: 'no_ejecutado', label: 'No ejecutado', color: 'destructive' },
-  { value: 'variacion', label: 'Variación', color: 'outline' },
+  { value: 'no_ejecutado', label: 'No salió', color: 'destructive' },
+  { value: 'variacion', label: 'Otra ruta', color: 'outline' },
 ]
 
 export function getEstadoViajeLabel(estado: string) {
@@ -73,14 +77,25 @@ export function useViajesQuincena(quincenaId: string | undefined) {
       // Obtener detalles de cada viaje
       const result = await Promise.all(
         (viajes as LiqViajeEjecutado[]).map(async (viaje) => {
-          // Obtener vehículo tercero
+          // Obtener vehículo tercero con contratista
           const { data: vehiculoTercero } = await sb
             .from('liq_vehiculos_terceros')
             .select('*')
             .eq('id', viaje.vehiculo_tercero_id)
             .single()
 
-          // Obtener ruta si hay ruta_programada_id (ahora es directamente el ID de rutas_logisticas)
+          // Obtener contratista del vehículo
+          let contratista = null
+          if (vehiculoTercero?.contratista_id) {
+            const { data: contratistaData } = await sb
+              .from('liq_contratistas')
+              .select('id, nombre')
+              .eq('id', vehiculoTercero.contratista_id)
+              .single()
+            contratista = contratistaData
+          }
+
+          // Obtener ruta programada si existe
           let ruta = null
           if (viaje.ruta_programada_id) {
             const { data: rutaData } = await sb
@@ -92,13 +107,30 @@ export function useViajesQuincena(quincenaId: string | undefined) {
             ruta = rutaData as RutaLogistica
           }
 
+          // Obtener ruta de variación si existe
+          let rutaVariacion = null
+          if (viaje.ruta_variacion_id) {
+            const { data: rutaVarData } = await sb
+              .from('rutas_logisticas')
+              .select('*')
+              .eq('id', viaje.ruta_variacion_id)
+              .single()
+
+            rutaVariacion = rutaVarData as RutaLogistica
+          }
+
           return {
             ...viaje,
-            vehiculo_tercero: vehiculoTercero as LiqVehiculoTercero & {
+            vehiculo_tercero: {
+              ...vehiculoTercero,
+              contratista,
+            } as LiqVehiculoTercero & {
               placa: string
               conductor_nombre: string | null
+              contratista?: { id: string; nombre: string }
             },
             ruta: ruta || undefined,
+            ruta_variacion: rutaVariacion || undefined,
           }
         })
       )
@@ -164,6 +196,17 @@ export function useViajesPorFecha(quincenaId: string | undefined, fecha: string 
             .eq('id', viaje.vehiculo_tercero_id)
             .single()
 
+          // Obtener contratista
+          let contratista = null
+          if (vehiculoTercero?.contratista_id) {
+            const { data: contratistaData } = await sb
+              .from('liq_contratistas')
+              .select('id, nombre')
+              .eq('id', vehiculoTercero.contratista_id)
+              .single()
+            contratista = contratistaData
+          }
+
           let ruta = null
           if (viaje.ruta_programada_id) {
             const { data: rutaData } = await sb
@@ -175,13 +218,30 @@ export function useViajesPorFecha(quincenaId: string | undefined, fecha: string 
             ruta = rutaData as RutaLogistica
           }
 
+          // Obtener ruta de variación si existe
+          let rutaVariacion = null
+          if (viaje.ruta_variacion_id) {
+            const { data: rutaVarData } = await sb
+              .from('rutas_logisticas')
+              .select('*')
+              .eq('id', viaje.ruta_variacion_id)
+              .single()
+
+            rutaVariacion = rutaVarData as RutaLogistica
+          }
+
           return {
             ...viaje,
-            vehiculo_tercero: vehiculoTercero as LiqVehiculoTercero & {
+            vehiculo_tercero: {
+              ...vehiculoTercero,
+              contratista,
+            } as LiqVehiculoTercero & {
               placa: string
               conductor_nombre: string | null
+              contratista?: { id: string; nombre: string }
             },
             ruta: ruta || undefined,
+            ruta_variacion: rutaVariacion || undefined,
           }
         })
       )
@@ -288,6 +348,43 @@ export function useUpdateEstadoViaje() {
       const { data, error } = await (supabase as any)
         .from('liq_viajes_ejecutados')
         .update({ estado })
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data as LiqViajeEjecutado
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })
+    },
+  })
+}
+
+// Hook para actualizar estado de viaje con ruta de variación
+export function useUpdateEstadoViajeConVariacion() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      estado,
+      rutaVariacionId,
+      quincenaId,
+    }: {
+      id: string
+      estado: EstadoViaje
+      rutaVariacionId: string | null
+      quincenaId: string
+    }): Promise<LiqViajeEjecutado> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('liq_viajes_ejecutados')
+        .update({
+          estado,
+          ruta_variacion_id: rutaVariacionId,
+        })
         .eq('id', id)
         .select()
         .single()

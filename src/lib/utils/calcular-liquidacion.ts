@@ -1,13 +1,12 @@
 import type {
   LiqViajeEjecutado,
   LiqVehiculoTerceroConDetalles,
-  VehiculoCostos,
 } from '@/types/database.types'
 
 // Resultado del cálculo de liquidación
 export interface ResultadoCalculoLiquidacion {
   viajes_ejecutados: number
-  viajes_parciales: number
+  viajes_variacion: number // Viajes con otra ruta (pagan 100%)
   viajes_no_ejecutados: number
   flete_base: number
   total_combustible: number
@@ -27,7 +26,7 @@ export function calcularLiquidacionVehiculo(
 
   // Contar viajes por estado
   let viajesEjecutados = 0
-  let viajesParciales = 0
+  let viajesVariacion = 0
   let viajesNoEjecutados = 0
 
   // Acumular costos de viajes
@@ -43,30 +42,33 @@ export function calcularLiquidacionVehiculo(
       totalPeajes += viaje.costo_peajes
       totalFletesAdicionales += viaje.costo_flete_adicional
       totalPernocta += viaje.costo_pernocta
-    } else if (viaje.estado === 'parcial') {
-      viajesParciales++
-      // Para parciales, se puede considerar un porcentaje de los costos
-      totalCombustible += viaje.costo_combustible * 0.5
-      totalPeajes += viaje.costo_peajes * 0.5
-      totalFletesAdicionales += viaje.costo_flete_adicional * 0.5
-      totalPernocta += viaje.costo_pernocta * 0.5
+    } else if (viaje.estado === 'variacion') {
+      // Variación paga 100% igual que ejecutado
+      viajesVariacion++
+      totalCombustible += viaje.costo_combustible
+      totalPeajes += viaje.costo_peajes
+      totalFletesAdicionales += viaje.costo_flete_adicional
+      totalPernocta += viaje.costo_pernocta
     } else if (viaje.estado === 'no_ejecutado') {
       viajesNoEjecutados++
       // No se suman costos para no ejecutados
     }
-    // pendiente y variacion no se cuentan aún
+    // pendiente no se cuenta
   }
+
+  // Total de viajes que se pagan (ejecutados + variación)
+  const viajesPagados = viajesEjecutados + viajesVariacion
 
   // Calcular flete base según modalidad
   let fleteBase = 0
   if (costos) {
     if (costos.modalidad_tercero === 'por_viaje' && costos.costo_por_viaje) {
-      // Flete = costo por viaje * (ejecutados + 0.5 * parciales)
-      fleteBase = costos.costo_por_viaje * (viajesEjecutados + viajesParciales * 0.5)
+      // Flete = costo por viaje * viajes pagados (ejecutados + variación)
+      fleteBase = costos.costo_por_viaje * viajesPagados
     } else if (costos.modalidad_tercero === 'flete_fijo' && costos.flete_mensual) {
       // Flete fijo mensual dividido por 2 (quincena)
-      // Solo se paga completo si hay al menos 1 viaje ejecutado
-      if (viajesEjecutados > 0 || viajesParciales > 0) {
+      // Solo se paga completo si hay al menos 1 viaje pagado
+      if (viajesPagados > 0) {
         fleteBase = costos.flete_mensual / 2
       }
     }
@@ -85,7 +87,7 @@ export function calcularLiquidacionVehiculo(
 
   return {
     viajes_ejecutados: viajesEjecutados,
-    viajes_parciales: viajesParciales,
+    viajes_variacion: viajesVariacion,
     viajes_no_ejecutados: viajesNoEjecutados,
     flete_base: Math.round(fleteBase),
     total_combustible: Math.round(totalCombustible),
@@ -110,9 +112,10 @@ export function formatCOP(valor: number): string {
 // Calcular porcentaje de ejecución
 export function calcularPorcentajeEjecucion(
   ejecutados: number,
-  parciales: number,
+  variacion: number,
   total: number
 ): number {
   if (total === 0) return 0
-  return Math.round(((ejecutados + parciales * 0.5) / total) * 100)
+  // Ejecutados + variación cuentan como 100% cada uno
+  return Math.round(((ejecutados + variacion) / total) * 100)
 }

@@ -202,7 +202,7 @@ export function generarComprobanteHTML(
           <strong>Flete base</strong><br>
           <span style="color: #666; font-size: 11px;">
             ${liquidacion.viajes_ejecutados} viajes ejecutados
-            ${liquidacion.viajes_parciales > 0 ? ` + ${liquidacion.viajes_parciales} parciales` : ''}
+            ${liquidacion.viajes_variacion > 0 ? ` + ${liquidacion.viajes_variacion} otra ruta` : ''}
             ${liquidacion.viajes_no_ejecutados > 0 ? ` - ${liquidacion.viajes_no_ejecutados} no ejecutados` : ''}
           </span>
         </td>
@@ -521,7 +521,7 @@ export function generarResumenConsolidadoHTML(
         ${c.liquidaciones.map((liq) => `
         <tr>
           <td>${liq.vehiculo_tercero?.placa || 'Sin placa'}</td>
-          <td style="text-align: center">${liq.viajes_ejecutados}${liq.viajes_parciales > 0 ? `+${liq.viajes_parciales}p` : ''}</td>
+          <td style="text-align: center">${liq.viajes_ejecutados}${liq.viajes_variacion > 0 ? `+${liq.viajes_variacion}v` : ''}</td>
           <td class="number">${formatCOP(liq.flete_base)}</td>
           <td class="number">${formatCOP(liq.total_combustible + liq.total_peajes + liq.total_fletes_adicionales + liq.total_pernocta + liq.ajuste_monto)}</td>
           <td class="number" style="color: #c00">${liq.total_deducciones > 0 ? `-${formatCOP(liq.total_deducciones)}` : '-'}</td>

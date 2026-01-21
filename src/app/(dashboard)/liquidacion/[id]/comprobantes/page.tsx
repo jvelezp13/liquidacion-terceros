@@ -330,7 +330,7 @@ export default function ComprobantesPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           {liq.viajes_ejecutados}
-                          {liq.viajes_parciales > 0 && `+${liq.viajes_parciales}p`}
+                          {liq.viajes_variacion > 0 && `+${liq.viajes_variacion}v`}
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {formatCOP(liq.flete_base)}

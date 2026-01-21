@@ -20,7 +20,7 @@ export interface UpsertLiquidacionInput {
   quincena_id: string
   vehiculo_tercero_id: string
   viajes_ejecutados: number
-  viajes_parciales: number
+  viajes_variacion: number
   viajes_no_ejecutados: number
   flete_base: number
   total_combustible: number
@@ -463,7 +463,7 @@ export function useGenerarLiquidaciones() {
 
         // Calcular totales
         let viajesEjecutados = 0
-        let viajesParciales = 0
+        let viajesVariacion = 0
         let viajesNoEjecutados = 0
         let totalCombustible = 0
         let totalPeajes = 0
@@ -477,24 +477,28 @@ export function useGenerarLiquidaciones() {
             totalPeajes += viaje.costo_peajes || 0
             totalFletesAdicionales += viaje.costo_flete_adicional || 0
             totalPernocta += viaje.costo_pernocta || 0
-          } else if (viaje.estado === 'parcial') {
-            viajesParciales++
-            totalCombustible += (viaje.costo_combustible || 0) * 0.5
-            totalPeajes += (viaje.costo_peajes || 0) * 0.5
-            totalFletesAdicionales += (viaje.costo_flete_adicional || 0) * 0.5
-            totalPernocta += (viaje.costo_pernocta || 0) * 0.5
+          } else if (viaje.estado === 'variacion') {
+            // Variación paga 100% igual que ejecutado
+            viajesVariacion++
+            totalCombustible += viaje.costo_combustible || 0
+            totalPeajes += viaje.costo_peajes || 0
+            totalFletesAdicionales += viaje.costo_flete_adicional || 0
+            totalPernocta += viaje.costo_pernocta || 0
           } else if (viaje.estado === 'no_ejecutado') {
             viajesNoEjecutados++
           }
         }
 
+        // Total de viajes que se pagan
+        const viajesPagados = viajesEjecutados + viajesVariacion
+
         // Calcular flete base
         let fleteBase = 0
         if (costos) {
           if (costos.modalidad_tercero === 'por_viaje' && costos.costo_por_viaje) {
-            fleteBase = costos.costo_por_viaje * (viajesEjecutados + viajesParciales * 0.5)
+            fleteBase = costos.costo_por_viaje * viajesPagados
           } else if (costos.modalidad_tercero === 'flete_fijo' && costos.flete_mensual) {
-            if (viajesEjecutados > 0 || viajesParciales > 0) {
+            if (viajesPagados > 0) {
               fleteBase = costos.flete_mensual / 2
             }
           }
@@ -521,7 +525,7 @@ export function useGenerarLiquidaciones() {
             .from('liq_liquidaciones')
             .update({
               viajes_ejecutados: viajesEjecutados,
-              viajes_parciales: viajesParciales,
+              viajes_variacion: viajesVariacion,
               viajes_no_ejecutados: viajesNoEjecutados,
               flete_base: Math.round(fleteBase),
               total_combustible: Math.round(totalCombustible),
@@ -546,7 +550,7 @@ export function useGenerarLiquidaciones() {
               quincena_id: quincenaId,
               vehiculo_tercero_id: vehiculo.id,
               viajes_ejecutados: viajesEjecutados,
-              viajes_parciales: viajesParciales,
+              viajes_variacion: viajesVariacion,
               viajes_no_ejecutados: viajesNoEjecutados,
               flete_base: Math.round(fleteBase),
               total_combustible: Math.round(totalCombustible),

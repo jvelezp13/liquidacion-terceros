@@ -18,8 +18,8 @@ export type TipoCuenta = 'ahorros' | 'corriente'
 // Estados de quincena
 export type EstadoQuincena = 'borrador' | 'validado' | 'liquidado' | 'pagado'
 
-// Estados de viaje
-export type EstadoViaje = 'pendiente' | 'ejecutado' | 'parcial' | 'no_ejecutado' | 'variacion'
+// Estados de viaje (sin 'parcial' - eliminado en migración 20260121200003)
+export type EstadoViaje = 'pendiente' | 'ejecutado' | 'no_ejecutado' | 'variacion'
 
 // Estados de liquidación
 export type EstadoLiquidacion = 'borrador' | 'aprobado' | 'pagado'
@@ -110,6 +110,7 @@ export interface LiqViajeEjecutado {
   vehiculo_tercero_id: string
   fecha: string
   ruta_programada_id: string | null
+  ruta_variacion_id: string | null // Ruta ejecutada cuando es diferente a la programada
   estado: string
   municipios_variacion: Json | null
   costo_combustible: number
@@ -132,7 +133,7 @@ export interface LiqLiquidacion {
   quincena_id: string
   vehiculo_tercero_id: string
   viajes_ejecutados: number
-  viajes_parciales: number
+  viajes_variacion: number // Viajes con ruta diferente a la programada (pagan 100%)
   viajes_no_ejecutados: number
   flete_base: number
   total_combustible: number
@@ -498,6 +499,7 @@ export type Database = {
           vehiculo_tercero_id: string
           fecha: string
           ruta_programada_id?: string | null
+          ruta_variacion_id?: string | null
           estado?: string
           municipios_variacion?: Json | null
           costo_combustible?: number
@@ -520,6 +522,7 @@ export type Database = {
           vehiculo_tercero_id?: string
           fecha?: string
           ruta_programada_id?: string | null
+          ruta_variacion_id?: string | null
           estado?: string
           municipios_variacion?: Json | null
           costo_combustible?: number
@@ -545,7 +548,7 @@ export type Database = {
           quincena_id: string
           vehiculo_tercero_id: string
           viajes_ejecutados?: number
-          viajes_parciales?: number
+          viajes_variacion?: number
           viajes_no_ejecutados?: number
           flete_base?: number
           total_combustible?: number
@@ -567,7 +570,7 @@ export type Database = {
           quincena_id?: string
           vehiculo_tercero_id?: string
           viajes_ejecutados?: number
-          viajes_parciales?: number
+          viajes_variacion?: number
           viajes_no_ejecutados?: number
           flete_base?: number
           total_combustible?: number

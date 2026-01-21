@@ -5,13 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,23 +22,28 @@ import {
   Calendar,
   CheckCircle,
   XCircle,
-  AlertCircle,
+  Route,
   Clock,
   Truck,
   RefreshCw,
+  CalendarDays,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuincena, useUpdateEstadoQuincena, formatearQuincena } from '@/lib/hooks/use-quincenas'
 import {
   useViajesQuincena,
   useUpdateEstadoViaje,
+  useUpdateEstadoViajeConVariacion,
   useGenerarViajesDesdeRutas,
-  estadosViaje,
-  getEstadoViajeLabel,
 } from '@/lib/hooks/use-viajes-ejecutados'
-import { useVehiculosTerceros } from '@/lib/hooks/use-vehiculos-terceros'
+import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
-import type { EstadoViaje, LiqViajeEjecutado } from '@/types/database.types'
+import {
+  CalendarioCompacto,
+  TarjetaViaje,
+  VistaPorVehiculo,
+} from '@/components/validacion'
+import type { EstadoViaje } from '@/types/database.types'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -54,32 +53,19 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const resolvedParams = use(params)
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string | null>(null)
   const [confirmValidar, setConfirmValidar] = useState(false)
+  const [vistaActiva, setVistaActiva] = useState<'dia' | 'vehiculo'>('dia')
 
   const { data: escenario, isLoading: escenarioLoading } = useEscenarioActivo()
   const { data: quincena, isLoading: quincenaLoading } = useQuincena(resolvedParams.id)
   const { data: viajes = [], isLoading: viajesLoading, refetch: refetchViajes } = useViajesQuincena(resolvedParams.id)
-  const { data: vehiculosTerceros = [] } = useVehiculosTerceros()
+  const { data: rutas = [] } = useRutasLogisticas()
 
   const updateEstadoViajeMutation = useUpdateEstadoViaje()
+  const updateEstadoViajeConVariacionMutation = useUpdateEstadoViajeConVariacion()
   const generarViajesMutation = useGenerarViajesDesdeRutas()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
 
   const isLoading = escenarioLoading || quincenaLoading || viajesLoading
-
-  // Generar array de fechas del periodo
-  const fechasPeriodo = useMemo(() => {
-    if (!quincena) return []
-
-    const fechas: Date[] = []
-    const inicio = new Date(quincena.fecha_inicio + 'T00:00:00')
-    const fin = new Date(quincena.fecha_fin + 'T00:00:00')
-
-    for (let d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
-      fechas.push(new Date(d))
-    }
-
-    return fechas
-  }, [quincena])
 
   // Agrupar viajes por fecha
   const viajesPorFecha = useMemo(() => {
@@ -104,42 +90,20 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     const stats = {
       total: viajes.length,
       ejecutados: 0,
-      parciales: 0,
+      variacion: 0,
       noEjecutados: 0,
       pendientes: 0,
     }
 
     for (const v of viajes) {
       if (v.estado === 'ejecutado') stats.ejecutados++
-      else if (v.estado === 'parcial') stats.parciales++
+      else if (v.estado === 'variacion') stats.variacion++
       else if (v.estado === 'no_ejecutado') stats.noEjecutados++
       else stats.pendientes++
     }
 
     return stats
   }, [viajes])
-
-  // Obtener estado del día (para colorear el calendario)
-  const getEstadoDia = (fecha: Date) => {
-    const fechaStr = fecha.toISOString().split('T')[0]
-    const viajesDia = viajesPorFecha.get(fechaStr) || []
-
-    if (viajesDia.length === 0) return 'sin-viajes'
-
-    const todosEjecutados = viajesDia.every((v) => v.estado === 'ejecutado')
-    const algunoPendiente = viajesDia.some((v) => v.estado === 'pendiente')
-    const algunoNoEjecutado = viajesDia.some((v) => v.estado === 'no_ejecutado')
-
-    if (todosEjecutados) return 'completo'
-    if (algunoPendiente) return 'pendiente'
-    if (algunoNoEjecutado) return 'con-problemas'
-    return 'parcial'
-  }
-
-  // Formatear nombre del día
-  const getNombreDia = (fecha: Date) => {
-    return fecha.toLocaleDateString('es-CO', { weekday: 'short' })
-  }
 
   // Generar viajes desde rutas programadas
   const handleGenerarViajes = () => {
@@ -163,13 +127,38 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     )
   }
 
-  // Cambiar estado de viaje
-  const handleCambiarEstadoViaje = (viaje: LiqViajeEjecutado, nuevoEstado: EstadoViaje) => {
+  // Cambiar estado de viaje (sin variación)
+  const handleCambiarEstadoViaje = (viajeId: string, nuevoEstado: EstadoViaje, quincenaId: string) => {
     updateEstadoViajeMutation.mutate(
       {
-        id: viaje.id,
+        id: viajeId,
         estado: nuevoEstado,
-        quincenaId: resolvedParams.id,
+        quincenaId,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Estado actualizado')
+        },
+        onError: (error) => {
+          toast.error('Error: ' + error.message)
+        },
+      }
+    )
+  }
+
+  // Cambiar estado de viaje con ruta de variación
+  const handleCambiarEstadoConVariacion = (
+    viajeId: string,
+    nuevoEstado: EstadoViaje,
+    rutaVariacionId: string | null,
+    quincenaId: string
+  ) => {
+    updateEstadoViajeConVariacionMutation.mutate(
+      {
+        id: viajeId,
+        estado: nuevoEstado,
+        rutaVariacionId,
+        quincenaId,
       },
       {
         onSuccess: () => {
@@ -196,20 +185,6 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         },
       }
     )
-  }
-
-  // Icono de estado
-  const getEstadoIcon = (estado: string) => {
-    switch (estado) {
-      case 'ejecutado':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'no_ejecutado':
-        return <XCircle className="h-4 w-4 text-red-500" />
-      case 'parcial':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />
-      default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />
-    }
   }
 
   if (!escenario && !escenarioLoading) {
@@ -248,6 +223,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   }
 
   const esEditable = quincena.estado === 'borrador'
+  const isUpdating = updateEstadoViajeMutation.isPending || updateEstadoViajeConVariacionMutation.isPending
 
   return (
     <div className="space-y-6">
@@ -294,7 +270,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
       )}
 
       {/* Estadísticas */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{estadisticas.total}</div>
@@ -303,154 +279,144 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-500">{estadisticas.ejecutados}</div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span className="text-2xl font-bold text-green-600">{estadisticas.ejecutados}</span>
+            </div>
             <p className="text-sm text-muted-foreground">Ejecutados</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-500">{estadisticas.parciales}</div>
-            <p className="text-sm text-muted-foreground">Parciales</p>
+            <div className="flex items-center gap-2">
+              <Route className="h-5 w-5 text-blue-500" />
+              <span className="text-2xl font-bold text-blue-600">{estadisticas.variacion}</span>
+            </div>
+            <p className="text-sm text-muted-foreground">Otra ruta</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-muted-foreground">{estadisticas.pendientes}</div>
+            <div className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-500" />
+              <span className="text-2xl font-bold text-red-600">{estadisticas.noEjecutados}</span>
+            </div>
+            <p className="text-sm text-muted-foreground">No salieron</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <span className="text-2xl font-bold">{estadisticas.pendientes}</span>
+            </div>
             <p className="text-sm text-muted-foreground">Pendientes</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Calendario de días */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Dias del periodo
-            </CardTitle>
-            <CardDescription>
-              Selecciona un dia para ver y validar los viajes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {fechasPeriodo.length === 0 ? (
-              <p className="text-muted-foreground">No hay fechas en el periodo</p>
-            ) : (
-              <div className="grid grid-cols-5 gap-2">
-                {fechasPeriodo.map((fecha) => {
-                  const fechaStr = fecha.toISOString().split('T')[0]
-                  const estadoDia = getEstadoDia(fecha)
-                  const viajesDia = viajesPorFecha.get(fechaStr) || []
-                  const esSeleccionado = fechaSeleccionada === fechaStr
+      {/* Tabs para cambiar vista */}
+      <Tabs value={vistaActiva} onValueChange={(v) => setVistaActiva(v as 'dia' | 'vehiculo')}>
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+          <TabsTrigger value="dia" className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Por Día
+          </TabsTrigger>
+          <TabsTrigger value="vehiculo" className="flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            Por Vehículo
+          </TabsTrigger>
+        </TabsList>
 
-                  return (
-                    <button
-                      key={fechaStr}
-                      onClick={() => setFechaSeleccionada(fechaStr)}
-                      className={`rounded-lg border p-2 text-center transition-colors ${
-                        esSeleccionado
-                          ? 'border-primary bg-primary/10'
-                          : 'hover:bg-muted'
-                      } ${
-                        estadoDia === 'completo'
-                          ? 'border-green-200 bg-green-50'
-                          : estadoDia === 'con-problemas'
-                          ? 'border-red-200 bg-red-50'
-                          : estadoDia === 'parcial'
-                          ? 'border-yellow-200 bg-yellow-50'
-                          : ''
-                      }`}
-                    >
-                      <div className="text-xs text-muted-foreground">
-                        {getNombreDia(fecha)}
-                      </div>
-                      <div className="text-lg font-medium">{fecha.getDate()}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {viajesDia.length} viaje(s)
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Vista por Día */}
+        <TabsContent value="dia" className="mt-4">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Calendario compacto */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Calendario
+                </CardTitle>
+                <CardDescription>
+                  Selecciona un día para ver y validar los viajes
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CalendarioCompacto
+                  fechaInicio={quincena.fecha_inicio}
+                  fechaFin={quincena.fecha_fin}
+                  viajes={viajes}
+                  fechaSeleccionada={fechaSeleccionada}
+                  onSelectFecha={setFechaSeleccionada}
+                />
+              </CardContent>
+            </Card>
 
-        {/* Lista de viajes del día seleccionado */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" />
-              Viajes del dia
-            </CardTitle>
-            <CardDescription>
-              {fechaSeleccionada
-                ? new Date(fechaSeleccionada + 'T00:00:00').toLocaleDateString('es-CO', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })
-                : 'Selecciona un dia para ver los viajes'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!fechaSeleccionada ? (
-              <div className="flex h-48 items-center justify-center text-muted-foreground">
-                Selecciona un dia en el calendario
-              </div>
-            ) : viajesFechaSeleccionada.length === 0 ? (
-              <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-                <Truck className="h-8 w-8" />
-                <p>No hay viajes programados para este dia</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {viajesFechaSeleccionada.map((viaje) => (
-                  <div
-                    key={viaje.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      {getEstadoIcon(viaje.estado)}
-                      <div>
-                        <p className="font-medium">
-                          {viaje.vehiculo_tercero?.placa || 'Sin placa'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {viaje.ruta?.nombre || 'Ruta no definida'}
-                        </p>
-                      </div>
-                    </div>
-                    {esEditable ? (
-                      <Select
-                        value={viaje.estado}
-                        onValueChange={(v) =>
-                          handleCambiarEstadoViaje(viaje, v as EstadoViaje)
-                        }
-                        disabled={updateEstadoViajeMutation.isPending}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {estadosViaje.map((estado) => (
-                            <SelectItem key={estado.value} value={estado.value}>
-                              {estado.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge variant="outline">{getEstadoViajeLabel(viaje.estado)}</Badge>
-                    )}
+            {/* Lista de viajes del día seleccionado */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Viajes del día
+                </CardTitle>
+                <CardDescription>
+                  {fechaSeleccionada
+                    ? new Date(fechaSeleccionada + 'T00:00:00').toLocaleDateString('es-CO', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                      })
+                    : 'Selecciona un día para ver los viajes'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!fechaSeleccionada ? (
+                  <div className="flex h-48 items-center justify-center text-muted-foreground">
+                    Selecciona un día en el calendario
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                ) : viajesFechaSeleccionada.length === 0 ? (
+                  <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+                    <Truck className="h-8 w-8" />
+                    <p>No hay viajes programados para este día</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                    {viajesFechaSeleccionada.map((viaje) => (
+                      <TarjetaViaje
+                        key={viaje.id}
+                        viaje={viaje}
+                        rutas={rutas}
+                        onCambiarEstado={(estado) =>
+                          handleCambiarEstadoViaje(viaje.id, estado, resolvedParams.id)
+                        }
+                        onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
+                          handleCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, resolvedParams.id)
+                        }
+                        isUpdating={isUpdating}
+                        disabled={!esEditable}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Vista por Vehículo */}
+        <TabsContent value="vehiculo" className="mt-4">
+          <VistaPorVehiculo
+            viajes={viajes}
+            rutas={rutas}
+            onCambiarEstado={handleCambiarEstadoViaje}
+            onCambiarEstadoConVariacion={handleCambiarEstadoConVariacion}
+            isUpdating={isUpdating}
+            disabled={!esEditable}
+            quincenaId={resolvedParams.id}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Confirmación de validar */}
       <AlertDialog open={confirmValidar} onOpenChange={setConfirmValidar}>
