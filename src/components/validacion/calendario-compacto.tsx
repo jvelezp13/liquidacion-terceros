@@ -15,8 +15,8 @@ interface CalendarioCompactoProps {
 // Nombres cortos de los días
 const DIAS_SEMANA = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
-// Tipo de estado del día
-type EstadoDia = 'sin-viajes' | 'completo' | 'pendiente' | 'con-problemas' | 'mixto'
+// Tipo de estado del día (simplificado: gestionado = sin pendientes)
+type EstadoDia = 'sin-viajes' | 'gestionado' | 'pendiente'
 
 export function CalendarioCompacto({
   fechaInicio,
@@ -51,22 +51,16 @@ export function CalendarioCompacto({
     return map
   }, [viajes])
 
-  // Obtener estado del día para colorear
+  // Obtener estado del día para colorear (simplificado)
   const getEstadoDia = (fecha: Date): EstadoDia => {
     const fechaStr = fecha.toISOString().split('T')[0]
     const viajesDia = viajesPorFecha.get(fechaStr) || []
 
     if (viajesDia.length === 0) return 'sin-viajes'
 
-    const estados = viajesDia.map((v) => v.estado)
-    const todosEjecutados = estados.every((e) => e === 'ejecutado' || e === 'variacion')
-    const todosNoEjecutados = estados.every((e) => e === 'no_ejecutado')
-    const algunoPendiente = estados.some((e) => e === 'pendiente')
-
-    if (todosEjecutados) return 'completo'
-    if (todosNoEjecutados) return 'con-problemas'
-    if (algunoPendiente) return 'pendiente'
-    return 'mixto'
+    // Si hay algún pendiente → amarillo, si no → verde
+    const algunoPendiente = viajesDia.some((v) => v.estado === 'pendiente')
+    return algunoPendiente ? 'pendiente' : 'gestionado'
   }
 
   // Obtener día de la semana (0=Lunes, 6=Domingo)
@@ -81,7 +75,7 @@ export function CalendarioCompacto({
     return getDiaSemana(fechasPeriodo[0])
   }, [fechasPeriodo])
 
-  // Estilos según estado
+  // Estilos según estado (simplificado)
   const getEstilosDia = (estado: EstadoDia, seleccionado: boolean) => {
     const base = 'relative flex flex-col items-center justify-center rounded-md p-1 cursor-pointer transition-all text-xs'
 
@@ -90,14 +84,10 @@ export function CalendarioCompacto({
     }
 
     switch (estado) {
-      case 'completo':
+      case 'gestionado':
         return cn(base, 'bg-green-100 text-green-800 hover:bg-green-200')
       case 'pendiente':
         return cn(base, 'bg-amber-100 text-amber-800 hover:bg-amber-200')
-      case 'con-problemas':
-        return cn(base, 'bg-red-100 text-red-800 hover:bg-red-200')
-      case 'mixto':
-        return cn(base, 'bg-blue-100 text-blue-800 hover:bg-blue-200')
       default:
         return cn(base, 'bg-muted text-muted-foreground hover:bg-muted/80')
     }
@@ -153,19 +143,11 @@ export function CalendarioCompacto({
       <div className="flex flex-wrap gap-3 pt-2 text-xs">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-green-100 border border-green-200" />
-          <span className="text-muted-foreground">Completo</span>
+          <span className="text-muted-foreground">Gestionado</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-amber-100 border border-amber-200" />
           <span className="text-muted-foreground">Pendiente</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-100 border border-red-200" />
-          <span className="text-muted-foreground">No salió</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-blue-100 border border-blue-200" />
-          <span className="text-muted-foreground">Mixto</span>
         </div>
       </div>
     </div>

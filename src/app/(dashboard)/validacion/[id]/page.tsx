@@ -35,6 +35,7 @@ import {
   useUpdateEstadoViaje,
   useUpdateEstadoViajeConVariacion,
   useGenerarViajesDesdeRutas,
+  useConfirmarViajesBatch,
 } from '@/lib/hooks/use-viajes-ejecutados'
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
@@ -62,6 +63,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
 
   const updateEstadoViajeMutation = useUpdateEstadoViaje()
   const updateEstadoViajeConVariacionMutation = useUpdateEstadoViajeConVariacion()
+  const confirmarViajesBatchMutation = useConfirmarViajesBatch()
   const generarViajesMutation = useGenerarViajesDesdeRutas()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
 
@@ -84,6 +86,9 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const viajesFechaSeleccionada = fechaSeleccionada
     ? viajesPorFecha.get(fechaSeleccionada) || []
     : []
+
+  // Viajes pendientes del día seleccionado
+  const viajesPendientesDelDia = viajesFechaSeleccionada.filter((v) => v.estado === 'pendiente')
 
   // Estadísticas
   const estadisticas = useMemo(() => {
@@ -171,6 +176,26 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     )
   }
 
+  // Confirmar todas las rutas pendientes del día como ejecutadas
+  const handleConfirmarTodasDelDia = () => {
+    if (viajesPendientesDelDia.length === 0) return
+
+    confirmarViajesBatchMutation.mutate(
+      {
+        viajeIds: viajesPendientesDelDia.map((v) => v.id),
+        quincenaId: resolvedParams.id,
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${viajesPendientesDelDia.length} rutas confirmadas`)
+        },
+        onError: (error) => {
+          toast.error('Error: ' + error.message)
+        },
+      }
+    )
+  }
+
   // Marcar quincena como validada
   const handleValidarQuincena = () => {
     updateEstadoQuincenaMutation.mutate(
@@ -223,7 +248,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   }
 
   const esEditable = quincena.estado === 'borrador'
-  const isUpdating = updateEstadoViajeMutation.isPending || updateEstadoViajeConVariacionMutation.isPending
+  const isUpdating = updateEstadoViajeMutation.isPending || updateEstadoViajeConVariacionMutation.isPending || confirmarViajesBatchMutation.isPending
 
   return (
     <div className="space-y-3">
@@ -316,9 +341,27 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                     : 'Viajes del día'}
                 </span>
                 {fechaSeleccionada && viajesFechaSeleccionada.length > 0 && (
-                  <Badge variant="secondary" className="text-xs ml-auto">
-                    {viajesFechaSeleccionada.length} viajes
-                  </Badge>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Badge variant="secondary" className="text-xs">
+                      {viajesFechaSeleccionada.length} viajes
+                    </Badge>
+                    {esEditable && viajesPendientesDelDia.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-xs"
+                        onClick={handleConfirmarTodasDelDia}
+                        disabled={confirmarViajesBatchMutation.isPending}
+                      >
+                        {confirmarViajesBatchMutation.isPending ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <CheckCircle className="mr-1 h-3 w-3" />
+                        )}
+                        Confirmar todas
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
               {!fechaSeleccionada ? (

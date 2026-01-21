@@ -424,6 +424,49 @@ export function useUpdateEstadoViajeConVariacion() {
   })
 }
 
+// Hook para confirmar múltiples viajes como ejecutados (batch)
+export function useConfirmarViajesBatch() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      viajeIds,
+      quincenaId,
+    }: {
+      viajeIds: string[]
+      quincenaId: string
+    }): Promise<LiqViajeEjecutado[]> => {
+      if (viajeIds.length === 0) return []
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('liq_viajes_ejecutados')
+        .update({ estado: 'ejecutado' })
+        .in('id', viajeIds)
+        .select()
+
+      if (error) throw error
+      return data as LiqViajeEjecutado[]
+    },
+    onSuccess: (data, variables) => {
+      // Actualizar cache inmediatamente
+      queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
+        ['viajes-ejecutados', variables.quincenaId],
+        (oldData) => {
+          if (!oldData) return oldData
+          const idsActualizados = new Set(variables.viajeIds)
+          return oldData.map((viaje) =>
+            idsActualizados.has(viaje.id)
+              ? { ...viaje, estado: 'ejecutado' as EstadoViaje }
+              : viaje
+          )
+        }
+      )
+    },
+  })
+}
+
 // Hook para eliminar viaje
 export function useDeleteViaje() {
   const supabase = createClient()
