@@ -28,20 +28,13 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
+      {/* Selector de empresa a la izquierda (igual que PlaneacionLogi) */}
       <div className="flex items-center gap-4">
-        {title && (
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        )}
+        <TenantSelector />
       </div>
 
+      {/* Menu de usuario a la derecha */}
       <div className="flex items-center gap-4">
-        {/* Selector de empresa */}
-        <TenantSelector />
-
-        {/* Separador */}
-        <div className="h-6 w-px bg-gray-200" />
-
-        {/* Menu de usuario */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">

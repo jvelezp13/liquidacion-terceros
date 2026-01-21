@@ -30,7 +30,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex h-full w-64 flex-col bg-slate-900">
+    <div className="flex h-full w-64 flex-col bg-blue-950">
       {/* Logo */}
       <div className="flex h-16 items-center px-6">
         <h1 className="text-xl font-bold text-white">
@@ -51,8 +51,8 @@ export function Sidebar() {
               className={cn(
                 'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-blue-900 text-white'
+                  : 'text-blue-200 hover:bg-blue-900 hover:text-white'
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />
@@ -63,10 +63,10 @@ export function Sidebar() {
       </nav>
 
       {/* Pie del sidebar */}
-      <div className="border-t border-slate-700 p-4">
+      <div className="border-t border-blue-800 p-4">
         <Link
           href="/configuracion"
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-blue-200 hover:bg-blue-900 hover:text-white"
         >
           <Settings className="h-5 w-5" />
           Configuración
