@@ -30,8 +30,7 @@ import {
   useDeleteContratista,
   useToggleContratistaActivo,
 } from '@/lib/hooks/use-contratistas'
-import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
-import { useCanEdit } from '@/lib/hooks/use-tenant'
+import { useActiveTenant, useCanEdit } from '@/lib/hooks/use-tenant'
 import type { LiqContratista } from '@/types/database.types'
 import type { ContratistaFormData } from '@/lib/validations/contratista'
 
@@ -40,7 +39,7 @@ export default function ContratistasPage() {
   const [editingContratista, setEditingContratista] = useState<LiqContratista | null>(null)
   const [deletingContratista, setDeletingContratista] = useState<LiqContratista | null>(null)
 
-  const { data: escenario, isLoading: escenarioLoading } = useEscenarioActivo()
+  const { data: tenant, isLoading: tenantLoading } = useActiveTenant()
   const { data: contratistas = [], isLoading: contratistasLoading } = useContratistas()
   const { hasRole: canEdit } = useCanEdit()
 
@@ -49,7 +48,7 @@ export default function ContratistasPage() {
   const deleteMutation = useDeleteContratista()
   const toggleActivoMutation = useToggleContratistaActivo()
 
-  const isLoading = escenarioLoading || contratistasLoading
+  const isLoading = tenantLoading || contratistasLoading
   const isMutating =
     createMutation.isPending ||
     updateMutation.isPending ||
@@ -138,13 +137,13 @@ export default function ContratistasPage() {
     })
   }
 
-  if (!escenario && !escenarioLoading) {
+  if (!tenant && !tenantLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
-          <p className="text-lg font-medium">No hay escenario activo</p>
+          <p className="text-lg font-medium">No hay empresa activa</p>
           <p className="text-muted-foreground">
-            Activa un escenario en Planeacion Logi para continuar
+            Selecciona una empresa para continuar
           </p>
         </div>
       </div>

@@ -39,7 +39,7 @@ export type DiaSemana = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export interface LiqContratista {
   id: string
-  escenario_id: string
+  tenant_id: string
   nombre: string
   tipo_documento: string
   numero_documento: string

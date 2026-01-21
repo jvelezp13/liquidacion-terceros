@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { useEscenarioActivo } from './use-escenario-activo'
+import { useActiveTenant } from './use-tenant'
 import type { LiqContratista } from '@/types/database.types'
 
 // Tipo para crear un contratista
@@ -24,52 +24,51 @@ export interface UpdateContratistaInput extends Partial<CreateContratistaInput> 
   activo?: boolean
 }
 
-// Hook para obtener todos los contratistas del escenario activo
+// Hook para obtener todos los contratistas del tenant activo
+// RLS filtra automaticamente por tenant_id = get_active_tenant_id()
 export function useContratistas() {
   const supabase = createClient()
-  const { data: escenario } = useEscenarioActivo()
+  const { data: tenant } = useActiveTenant()
 
   return useQuery({
-    queryKey: ['contratistas', escenario?.id],
+    queryKey: ['contratistas', tenant?.id],
     queryFn: async (): Promise<LiqContratista[]> => {
-      if (!escenario?.id) return []
+      if (!tenant?.id) return []
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('liq_contratistas')
         .select('*')
-        .eq('escenario_id', escenario.id)
         .order('nombre')
 
       if (error) throw error
       return (data || []) as LiqContratista[]
     },
-    enabled: !!escenario?.id,
+    enabled: !!tenant?.id,
   })
 }
 
-// Hook para obtener contratistas activos
+// Hook para obtener contratistas activos del tenant
 export function useContratistasActivos() {
   const supabase = createClient()
-  const { data: escenario } = useEscenarioActivo()
+  const { data: tenant } = useActiveTenant()
 
   return useQuery({
-    queryKey: ['contratistas', escenario?.id, 'activos'],
+    queryKey: ['contratistas', tenant?.id, 'activos'],
     queryFn: async (): Promise<LiqContratista[]> => {
-      if (!escenario?.id) return []
+      if (!tenant?.id) return []
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('liq_contratistas')
         .select('*')
-        .eq('escenario_id', escenario.id)
         .eq('activo', true)
         .order('nombre')
 
       if (error) throw error
       return (data || []) as LiqContratista[]
     },
-    enabled: !!escenario?.id,
+    enabled: !!tenant?.id,
   })
 }
 
@@ -100,12 +99,12 @@ export function useContratista(id: string | undefined) {
 export function useCreateContratista() {
   const supabase = createClient()
   const queryClient = useQueryClient()
-  const { data: escenario } = useEscenarioActivo()
+  const { data: tenant } = useActiveTenant()
 
   return useMutation({
     mutationFn: async (input: CreateContratistaInput): Promise<LiqContratista> => {
-      if (!escenario?.id) {
-        throw new Error('No hay escenario activo')
+      if (!tenant?.id) {
+        throw new Error('No hay tenant activo')
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,7 +112,7 @@ export function useCreateContratista() {
         .from('liq_contratistas')
         .insert({
           ...input,
-          escenario_id: escenario.id,
+          tenant_id: tenant.id,
         })
         .select()
         .single()
