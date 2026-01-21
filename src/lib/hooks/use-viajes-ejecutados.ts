@@ -80,24 +80,16 @@ export function useViajesQuincena(quincenaId: string | undefined) {
             .eq('id', viaje.vehiculo_tercero_id)
             .single()
 
-          // Obtener ruta si hay ruta_programada_id
+          // Obtener ruta si hay ruta_programada_id (ahora es directamente el ID de rutas_logisticas)
           let ruta = null
           if (viaje.ruta_programada_id) {
-            const { data: rutaProgramada } = await sb
-              .from('liq_vehiculo_rutas_programadas')
-              .select('ruta_id')
+            const { data: rutaData } = await sb
+              .from('rutas_logisticas')
+              .select('*')
               .eq('id', viaje.ruta_programada_id)
               .single()
 
-            if (rutaProgramada) {
-              const { data: rutaData } = await sb
-                .from('rutas_logisticas')
-                .select('*')
-                .eq('id', (rutaProgramada as { ruta_id: string }).ruta_id)
-                .single()
-
-              ruta = rutaData as RutaLogistica
-            }
+            ruta = rutaData as RutaLogistica
           }
 
           return {
@@ -174,21 +166,13 @@ export function useViajesPorFecha(quincenaId: string | undefined, fecha: string 
 
           let ruta = null
           if (viaje.ruta_programada_id) {
-            const { data: rutaProgramada } = await sb
-              .from('liq_vehiculo_rutas_programadas')
-              .select('ruta_id')
+            const { data: rutaData } = await sb
+              .from('rutas_logisticas')
+              .select('*')
               .eq('id', viaje.ruta_programada_id)
               .single()
 
-            if (rutaProgramada) {
-              const { data: rutaData } = await sb
-                .from('rutas_logisticas')
-                .select('*')
-                .eq('id', (rutaProgramada as { ruta_id: string }).ruta_id)
-                .single()
-
-              ruta = rutaData as RutaLogistica
-            }
+            ruta = rutaData as RutaLogistica
           }
 
           return {
@@ -378,10 +362,10 @@ export function useGenerarViajesDesdeRutas() {
 
         if (!rutasProgramadas || rutasProgramadas.length === 0) continue
 
-        // Crear mapa de día -> ruta programada
+        // Crear mapa de día -> ruta_id (la ruta logística real)
         const rutasPorDia = new Map<number, string>()
         for (const rp of rutasProgramadas) {
-          rutasPorDia.set(rp.dia_semana, rp.id)
+          rutasPorDia.set(rp.dia_semana, rp.ruta_id)
         }
 
         // Iterar por cada día del periodo

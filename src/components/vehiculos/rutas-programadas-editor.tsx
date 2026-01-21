@@ -48,7 +48,10 @@ export function RutasProgramadasEditor({ vehiculoTercero }: RutasProgramadasEdit
 
   // Sincronizar rutas programadas con estado local
   useEffect(() => {
-    if (rutasProgramadas.length > 0 && !editando) {
+    // No actualizar si estamos editando
+    if (editando) return
+
+    if (rutasProgramadas.length > 0) {
       setRutasLocales(
         rutasProgramadas.map((rp) => ({
           id: rp.id,
@@ -57,8 +60,9 @@ export function RutasProgramadasEditor({ vehiculoTercero }: RutasProgramadasEdit
           ruta: rutasDisponibles.find((r) => r.id === rp.ruta_id),
         }))
       )
-    } else if (rutasProgramadas.length === 0 && !editando) {
-      setRutasLocales([])
+    } else {
+      // Solo resetear si no está ya vacío (evita loop infinito)
+      setRutasLocales((prev) => (prev.length === 0 ? prev : []))
     }
   }, [rutasProgramadas, rutasDisponibles, editando])
 
