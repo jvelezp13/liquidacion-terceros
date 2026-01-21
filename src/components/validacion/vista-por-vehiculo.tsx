@@ -32,6 +32,7 @@ interface VistaPorVehiculoProps {
     rutaVariacionId: string | null,
     quincenaId: string
   ) => void
+  onEliminar?: (viajeId: string) => void
   isUpdating?: boolean
   disabled?: boolean
   quincenaId: string
@@ -42,6 +43,7 @@ export function VistaPorVehiculo({
   rutas,
   onCambiarEstado,
   onCambiarEstadoConVariacion,
+  onEliminar,
   isUpdating = false,
   disabled = false,
   quincenaId,
@@ -233,6 +235,7 @@ export function VistaPorVehiculo({
                       onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
                         onCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, quincenaId)
                       }
+                      onEliminar={onEliminar ? () => onEliminar(viaje.id) : undefined}
                       isUpdating={isUpdating}
                       disabled={disabled}
                     />

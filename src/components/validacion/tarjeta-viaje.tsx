@@ -12,6 +12,7 @@ import {
   XCircle,
   Route,
   Loader2,
+  Trash2,
 } from 'lucide-react'
 import { SelectorRutaVariacion } from './selector-ruta-variacion'
 import type { ViajeEjecutadoConDetalles } from '@/lib/hooks/use-viajes-ejecutados'
@@ -22,6 +23,7 @@ interface TarjetaViajeProps {
   rutas: RutaLogistica[]
   onCambiarEstado: (estado: EstadoViaje) => void
   onCambiarEstadoConVariacion: (estado: EstadoViaje, rutaVariacionId: string | null) => void
+  onEliminar?: () => void
   isUpdating?: boolean
   disabled?: boolean
 }
@@ -31,6 +33,7 @@ export function TarjetaViaje({
   rutas,
   onCambiarEstado: _onCambiarEstado,
   onCambiarEstadoConVariacion,
+  onEliminar,
   isUpdating = false,
   disabled = false,
 }: TarjetaViajeProps) {
@@ -192,6 +195,21 @@ export function TarjetaViaje({
           >
             <Route className="h-3.5 w-3.5" />
           </Button>
+          {onEliminar && (
+            <>
+              <div className="w-px h-5 bg-border mx-0.5" />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                onClick={onEliminar}
+                disabled={disabled || isUpdating}
+                title="Eliminar viaje"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

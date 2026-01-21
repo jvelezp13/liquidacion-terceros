@@ -469,7 +469,7 @@ export function useConfirmarViajesBatch() {
   })
 }
 
-// Hook para eliminar viaje
+// Hook para eliminar viaje (con actualización optimista)
 export function useDeleteViaje() {
   const supabase = createClient()
   const queryClient = useQueryClient()
@@ -484,7 +484,36 @@ export function useDeleteViaje() {
 
       if (error) throw error
     },
-    onSuccess: (_, variables) => {
+    // Actualización optimista: remover inmediatamente del UI
+    onMutate: async (variables) => {
+      // Cancelar queries en vuelo para evitar que sobreescriban
+      await queryClient.cancelQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })
+
+      // Guardar estado anterior para rollback si falla
+      const previousViajes = queryClient.getQueryData<ViajeEjecutadoConDetalles[]>(
+        ['viajes-ejecutados', variables.quincenaId]
+      )
+
+      // Remover el viaje del cache inmediatamente
+      queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
+        ['viajes-ejecutados', variables.quincenaId],
+        (oldData) => oldData?.filter((v) => v.id !== variables.id) || []
+      )
+
+      // Retornar contexto para rollback
+      return { previousViajes }
+    },
+    onError: (err, variables, context) => {
+      // Rollback: restaurar estado anterior si falla
+      if (context?.previousViajes) {
+        queryClient.setQueryData(
+          ['viajes-ejecutados', variables.quincenaId],
+          context.previousViajes
+        )
+      }
+    },
+    onSettled: (_, __, variables) => {
+      // Sincronizar con servidor al final (por si acaso)
       queryClient.invalidateQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })
     },
   })

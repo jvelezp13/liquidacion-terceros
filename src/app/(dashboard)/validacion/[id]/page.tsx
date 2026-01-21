@@ -37,6 +37,7 @@ import {
   useGenerarViajesDesdeRutas,
   useConfirmarViajesBatch,
   useUpsertViaje,
+  useDeleteViaje,
 } from '@/lib/hooks/use-viajes-ejecutados'
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
@@ -71,6 +72,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const generarViajesMutation = useGenerarViajesDesdeRutas()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
   const upsertViajeMutation = useUpsertViaje()
+  const deleteViajeMutation = useDeleteViaje()
 
   const isLoading = escenarioLoading || quincenaLoading || viajesLoading
 
@@ -250,6 +252,23 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         },
         onError: (error) => {
           toast.error('Error al crear viaje: ' + error.message)
+        },
+      }
+    )
+  }
+
+  // Eliminar viaje
+  const handleEliminarViaje = (viajeId: string) => {
+    if (!confirm('¿Eliminar este viaje? Esta acción no se puede deshacer.')) return
+
+    deleteViajeMutation.mutate(
+      { id: viajeId, quincenaId: resolvedParams.id },
+      {
+        onSuccess: () => {
+          toast.success('Viaje eliminado')
+        },
+        onError: (error) => {
+          toast.error('Error al eliminar: ' + error.message)
         },
       }
     )
@@ -438,6 +457,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                       onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
                         handleCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, resolvedParams.id)
                       }
+                      onEliminar={() => handleEliminarViaje(viaje.id)}
                       isUpdating={isUpdating}
                       disabled={!esEditable}
                     />
@@ -455,6 +475,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
             rutas={rutas}
             onCambiarEstado={handleCambiarEstadoViaje}
             onCambiarEstadoConVariacion={handleCambiarEstadoConVariacion}
+            onEliminar={handleEliminarViaje}
             isUpdating={isUpdating}
             disabled={!esEditable}
             quincenaId={resolvedParams.id}
