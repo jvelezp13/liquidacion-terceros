@@ -16,12 +16,27 @@ export const quincenaSchema = z.object({
     message: 'Selecciona 1ra o 2da quincena',
   }),
 
+  // Fechas del periodo (editables)
+  fecha_inicio: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)'),
+
+  fecha_fin: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)'),
+
   notas: z
     .string()
     .max(500, 'Las notas no pueden exceder 500 caracteres')
     .optional()
     .or(z.literal('')),
-})
+}).refine(
+  (data) => data.fecha_fin >= data.fecha_inicio,
+  {
+    message: 'La fecha fin debe ser igual o posterior a la fecha de inicio',
+    path: ['fecha_fin'],
+  }
+)
 
 export type QuincenaFormData = z.infer<typeof quincenaSchema>
 

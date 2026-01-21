@@ -72,8 +72,8 @@ export function QuincenasTable({
     return (
       <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
         <Calendar className="h-8 w-8" />
-        <p>No hay quincenas creadas.</p>
-        <p className="text-sm">Crea una quincena para empezar a validar rutas.</p>
+        <p>No hay periodos creados.</p>
+        <p className="text-sm">Crea un periodo para empezar a validar rutas.</p>
       </div>
     )
   }
@@ -83,10 +83,10 @@ export function QuincenasTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Quincena</TableHead>
             <TableHead>Periodo</TableHead>
+            <TableHead>Fechas</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead>Fechas clave</TableHead>
+            <TableHead>Historial</TableHead>
             <TableHead className="w-[100px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>

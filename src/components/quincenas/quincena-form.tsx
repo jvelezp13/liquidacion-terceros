@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -20,7 +21,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Calendar } from 'lucide-react'
+import { Calendar, AlertTriangle } from 'lucide-react'
 import {
   quincenaSchema,
   type QuincenaFormData,
@@ -45,12 +46,17 @@ export function QuincenaForm({
   const currentYear = añoDefault || new Date().getFullYear()
   const currentMonth = new Date().getMonth() + 1
 
+  // Calcular fechas iniciales
+  const fechasIniciales = calcularFechasQuincena(currentYear, currentMonth, 1)
+
   const form = useForm<QuincenaFormData>({
     resolver: zodResolver(quincenaSchema),
     defaultValues: {
       año: currentYear,
       mes: currentMonth,
       quincena: 1,
+      fecha_inicio: fechasIniciales.fecha_inicio,
+      fecha_fin: fechasIniciales.fecha_fin,
       notas: '',
     },
   })
@@ -58,13 +64,29 @@ export function QuincenaForm({
   const watchAño = form.watch('año')
   const watchMes = form.watch('mes')
   const watchQuincena = form.watch('quincena')
+  const watchFechaInicio = form.watch('fecha_inicio')
+  const watchFechaFin = form.watch('fecha_fin')
 
-  // Calcular fechas para preview
-  const fechasPreview = calcularFechasQuincena(
+  // Auto-actualizar fechas cuando cambia año/mes/quincena
+  useEffect(() => {
+    const nuevasFechas = calcularFechasQuincena(
+      watchAño,
+      watchMes,
+      watchQuincena as 1 | 2
+    )
+    form.setValue('fecha_inicio', nuevasFechas.fecha_inicio)
+    form.setValue('fecha_fin', nuevasFechas.fecha_fin)
+  }, [watchAño, watchMes, watchQuincena, form])
+
+  // Verificar si las fechas fueron modificadas manualmente
+  const fechasSugeridas = calcularFechasQuincena(
     watchAño,
     watchMes,
     watchQuincena as 1 | 2
   )
+  const fechasModificadas =
+    watchFechaInicio !== fechasSugeridas.fecha_inicio ||
+    watchFechaFin !== fechasSugeridas.fecha_fin
 
   const handleSubmit = (data: QuincenaFormData) => {
     onSubmit({
@@ -156,15 +178,57 @@ export function QuincenaForm({
           />
         </div>
 
-        {/* Preview de fechas */}
-        <div className="rounded-lg border bg-muted/50 p-4">
+        {/* Fechas del periodo (editables) */}
+        <div className="space-y-4">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Calendar className="h-4 w-4" />
-            Periodo seleccionado
+            Fechas del periodo
           </div>
-          <p className="mt-1 text-lg font-semibold">
-            {fechasPreview.fecha_inicio} al {fechasPreview.fecha_fin}
-          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="fecha_inicio"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha inicio *</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="fecha_fin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha fin *</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {/* Aviso si las fechas fueron modificadas */}
+          {fechasModificadas && (
+            <div className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Fechas personalizadas</p>
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  Las fechas no coinciden con el periodo estándar ({fechasSugeridas.fecha_inicio} al {fechasSugeridas.fecha_fin}).
+                  Esto es válido si tu ciclo de pago es diferente.
+                </p>
+              </div>
+            </div>
+          )}
+
           <p className="text-sm text-muted-foreground">
             {mesesOptions.find((m) => m.value === watchMes)?.label} {watchAño} -{' '}
             {watchQuincena === 1 ? '1ra' : '2da'} Quincena
@@ -195,7 +259,7 @@ export function QuincenaForm({
             Cancelar
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Creando...' : 'Crear Quincena'}
+            {isLoading ? 'Creando...' : 'Crear Periodo'}
           </Button>
         </div>
       </form>

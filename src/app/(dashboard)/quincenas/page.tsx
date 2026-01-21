@@ -28,8 +28,8 @@ import {
   useCreateQuincena,
   useUpdateEstadoQuincena,
   useDeleteQuincena,
-  calcularFechasQuincena,
   formatearQuincena,
+  verificarTraslape,
 } from '@/lib/hooks/use-quincenas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
 import { useCanEdit } from '@/lib/hooks/use-tenant'
@@ -39,6 +39,7 @@ import type { QuincenaFormData } from '@/lib/validations/quincena'
 export default function QuincenasPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [deletingQuincena, setDeletingQuincena] = useState<LiqQuincena | null>(null)
+  const [isValidatingTraslape, setIsValidatingTraslape] = useState(false)
 
   const { data: escenario, isLoading: escenarioLoading } = useEscenarioActivo()
   const { data: quincenas = [], isLoading: quincenasLoading } = useQuincenas()
@@ -55,16 +56,41 @@ export default function QuincenasPage() {
     setIsFormOpen(true)
   }
 
-  const handleSubmit = (data: QuincenaFormData) => {
-    const fechas = calcularFechasQuincena(data.año, data.mes, data.quincena as 1 | 2)
+  const handleSubmit = async (data: QuincenaFormData) => {
+    if (!escenario?.id) {
+      toast.error('No hay escenario activo')
+      return
+    }
 
+    // Validar que no haya traslape con periodos existentes
+    setIsValidatingTraslape(true)
+    try {
+      const { hayTraslape, periodoConflicto } = await verificarTraslape(
+        escenario.id,
+        data.fecha_inicio,
+        data.fecha_fin
+      )
+
+      if (hayTraslape) {
+        toast.error(`Las fechas se traslapan con: ${periodoConflicto}`)
+        setIsValidatingTraslape(false)
+        return
+      }
+    } catch (error) {
+      toast.error('Error al validar fechas')
+      setIsValidatingTraslape(false)
+      return
+    }
+    setIsValidatingTraslape(false)
+
+    // Crear la quincena con las fechas del formulario
     createMutation.mutate(
       {
         año: data.año,
         mes: data.mes,
         quincena: data.quincena as 1 | 2,
-        fecha_inicio: fechas.fecha_inicio,
-        fecha_fin: fechas.fecha_fin,
+        fecha_inicio: data.fecha_inicio,
+        fecha_fin: data.fecha_fin,
         notas: data.notas,
       },
       {
@@ -134,21 +160,21 @@ export default function QuincenasPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Quincenas</h1>
+          <h1 className="text-2xl font-bold">Periodos de Liquidacion</h1>
           <p className="text-muted-foreground">
-            Periodos de liquidacion quincenal
+            Gestiona los periodos de pago a terceros
           </p>
         </div>
         <Button onClick={handleCreate} disabled={isLoading}>
           <Plus className="mr-2 h-4 w-4" />
-          Nueva Quincena
+          Nuevo Periodo
         </Button>
       </div>
 
-      {/* Quincenas activas */}
+      {/* Periodos activos */}
       <Card>
         <CardHeader>
-          <CardTitle>Quincenas Activas</CardTitle>
+          <CardTitle>Periodos Activos</CardTitle>
           <CardDescription>
             Periodos en proceso de validacion o liquidacion
           </CardDescription>
@@ -169,13 +195,13 @@ export default function QuincenasPage() {
         </CardContent>
       </Card>
 
-      {/* Quincenas pagadas (historial reciente) */}
+      {/* Periodos pagados (historial reciente) */}
       {quincenasPagadas.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Historial Reciente</CardTitle>
             <CardDescription>
-              Ultimas quincenas pagadas
+              Ultimos periodos pagados
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -189,19 +215,19 @@ export default function QuincenasPage() {
         </Card>
       )}
 
-      {/* Dialog para crear quincena */}
+      {/* Dialog para crear periodo */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva Quincena</DialogTitle>
+            <DialogTitle>Nuevo Periodo</DialogTitle>
             <DialogDescription>
-              Crea un nuevo periodo de liquidacion quincenal
+              Crea un nuevo periodo de liquidacion
             </DialogDescription>
           </DialogHeader>
           <QuincenaForm
             onSubmit={handleSubmit}
             onCancel={() => setIsFormOpen(false)}
-            isLoading={createMutation.isPending}
+            isLoading={createMutation.isPending || isValidatingTraslape}
             añoDefault={escenario?.año}
           />
         </DialogContent>
@@ -214,7 +240,7 @@ export default function QuincenasPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar quincena</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar periodo</AlertDialogTitle>
             <AlertDialogDescription>
               ¿Estas seguro de eliminar{' '}
               <strong>{deletingQuincena && formatearQuincena(deletingQuincena)}</strong>?

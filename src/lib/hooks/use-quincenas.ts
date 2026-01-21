@@ -241,6 +241,56 @@ export function useDeleteQuincena() {
   })
 }
 
+// Función para verificar si hay traslape de fechas con periodos existentes
+export async function verificarTraslape(
+  escenarioId: string,
+  fechaInicio: string,
+  fechaFin: string,
+  excluirId?: string // Para edición: excluir el periodo actual
+): Promise<{ hayTraslape: boolean; periodoConflicto?: string }> {
+  const supabase = createClient()
+
+  // Buscar periodos que se traslapen
+  // Traslape: nueva_fecha_inicio <= existente.fecha_fin AND nueva_fecha_fin >= existente.fecha_inicio
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
+    .from('liq_quincenas')
+    .select('id, fecha_inicio, fecha_fin, año, mes, quincena')
+    .eq('escenario_id', escenarioId)
+    .lte('fecha_inicio', fechaFin)
+    .gte('fecha_fin', fechaInicio)
+
+  // Si estamos editando, excluir el periodo actual
+  if (excluirId) {
+    query = query.neq('id', excluirId)
+  }
+
+  const { data, error } = await query.limit(1)
+
+  if (error) {
+    console.error('Error verificando traslape:', error)
+    throw error
+  }
+
+  if (data && data.length > 0) {
+    const conflicto = data[0] as {
+      fecha_inicio: string
+      fecha_fin: string
+      año: number
+      mes: number
+      quincena: number
+    }
+    const nombreMes = getNombreMes(conflicto.mes)
+    const sufijo = conflicto.quincena === 1 ? '1ra' : '2da'
+    return {
+      hayTraslape: true,
+      periodoConflicto: `${sufijo} Quincena ${nombreMes} ${conflicto.año} (${conflicto.fecha_inicio} al ${conflicto.fecha_fin})`,
+    }
+  }
+
+  return { hayTraslape: false }
+}
+
 // Utilidad para calcular fechas de quincena
 export function calcularFechasQuincena(año: number, mes: number, quincena: 1 | 2) {
   if (quincena === 1) {

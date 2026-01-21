@@ -19,7 +19,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Contratistas', href: '/contratistas', icon: Users },
   { name: 'Vehículos', href: '/vehiculos', icon: Truck },
-  { name: 'Quincenas', href: '/quincenas', icon: Calendar },
+  { name: 'Periodos', href: '/quincenas', icon: Calendar },
   { name: 'Validación', href: '/validacion', icon: CheckSquare },
   { name: 'Liquidación', href: '/liquidacion', icon: FileText },
   { name: 'Pagos', href: '/pagos', icon: CreditCard },
