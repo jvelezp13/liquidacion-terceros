@@ -355,8 +355,19 @@ export function useUpdateEstadoViaje() {
       if (error) throw error
       return data as LiqViajeEjecutado
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })
+    onSuccess: (data, variables) => {
+      // Actualizar cache inmediatamente para feedback visual instantáneo
+      queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
+        ['viajes-ejecutados', variables.quincenaId],
+        (oldData) => {
+          if (!oldData) return oldData
+          return oldData.map((viaje) =>
+            viaje.id === variables.id
+              ? { ...viaje, estado: data.estado }
+              : viaje
+          )
+        }
+      )
     },
   })
 }
@@ -392,8 +403,23 @@ export function useUpdateEstadoViajeConVariacion() {
       if (error) throw error
       return data as LiqViajeEjecutado
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })
+    onSuccess: (data, variables) => {
+      // Actualizar cache inmediatamente para feedback visual instantáneo
+      queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
+        ['viajes-ejecutados', variables.quincenaId],
+        (oldData) => {
+          if (!oldData) return oldData
+          return oldData.map((viaje) =>
+            viaje.id === variables.id
+              ? {
+                  ...viaje,
+                  estado: data.estado,
+                  ruta_variacion_id: data.ruta_variacion_id,
+                }
+              : viaje
+          )
+        }
+      )
     },
   })
 }
