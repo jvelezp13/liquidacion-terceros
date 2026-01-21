@@ -170,23 +170,115 @@ export function useUpdateEstadoQuincena() {
       id: string
       estado: EstadoQuincena
     }): Promise<LiqQuincena> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any
+
+      // Obtener estado actual de la quincena
+      const { data: quincenaActual, error: fetchError } = await sb
+        .from('liq_quincenas')
+        .select('estado, mes')
+        .eq('id', id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const estadoAnterior = (quincenaActual as { estado: EstadoQuincena; mes: number }).estado
+      const mes = (quincenaActual as { estado: EstadoQuincena; mes: number }).mes
+
       const updateData: Record<string, unknown> = { estado }
 
-      // Agregar timestamp según el estado
-      switch (estado) {
-        case 'validado':
-          updateData.fecha_validacion = new Date().toISOString()
-          break
-        case 'liquidado':
-          updateData.fecha_liquidacion = new Date().toISOString()
-          break
-        case 'pagado':
-          updateData.fecha_pago = new Date().toISOString()
-          break
+      // Manejar transiciones de estado
+      if (estadoAnterior === 'validado' && estado === 'borrador') {
+        // REVERSION: Validado -> Borrador
+        // Limpiar fecha_validacion y eliminar liquidaciones
+        updateData.fecha_validacion = null
+
+        // Eliminar liquidaciones existentes
+        const { error: deleteLiqError } = await sb
+          .from('liq_liquidaciones')
+          .delete()
+          .eq('quincena_id', id)
+
+        if (deleteLiqError) {
+          console.error('Error eliminando liquidaciones:', deleteLiqError)
+        }
+
+      } else if (estadoAnterior === 'liquidado' && estado === 'validado') {
+        // REVERSION: Liquidado -> Validado
+        // Limpiar fecha_liquidacion, poner liquidaciones en borrador, revertir sincronizacion
+        updateData.fecha_liquidacion = null
+
+        // Cambiar liquidaciones a estado borrador
+        const { error: updateLiqError } = await sb
+          .from('liq_liquidaciones')
+          .update({ estado: 'borrador' })
+          .eq('quincena_id', id)
+
+        if (updateLiqError) {
+          console.error('Error actualizando liquidaciones:', updateLiqError)
+        }
+
+        // Revertir sincronizacion con ejecucion_rubros
+        // Obtener los vehiculos de las liquidaciones para saber qué eliminar
+        const { data: liquidaciones } = await sb
+          .from('liq_liquidaciones')
+          .select(`
+            vehiculo_tercero_id,
+            liq_vehiculos_terceros!inner(vehiculo_id)
+          `)
+          .eq('quincena_id', id)
+
+        if (liquidaciones && liquidaciones.length > 0) {
+          // Obtener el escenario_id del primer vehiculo
+          const primerVehiculoId = (liquidaciones[0] as { liq_vehiculos_terceros: { vehiculo_id: string } }).liq_vehiculos_terceros.vehiculo_id
+
+          const { data: vehiculoData } = await sb
+            .from('vehiculos')
+            .select('escenario_id')
+            .eq('id', primerVehiculoId)
+            .single()
+
+          if (vehiculoData) {
+            const escenarioId = (vehiculoData as { escenario_id: string }).escenario_id
+
+            // Obtener todos los vehiculo_id para eliminar sus registros
+            const vehiculoIds = liquidaciones.map(
+              (l: { liq_vehiculos_terceros: { vehiculo_id: string } }) =>
+                l.liq_vehiculos_terceros.vehiculo_id
+            )
+
+            // Eliminar registros de ejecucion_rubros para estos vehiculos en este mes
+            const { error: deleteEjecError } = await sb
+              .from('ejecucion_rubros')
+              .delete()
+              .eq('escenario_id', escenarioId)
+              .eq('mes', mes)
+              .eq('tipo_rubro', 'vehiculos')
+              .in('item_id', vehiculoIds)
+
+            if (deleteEjecError) {
+              console.error('Error eliminando ejecucion_rubros:', deleteEjecError)
+            }
+          }
+        }
+
+      } else {
+        // Transiciones hacia adelante: agregar timestamps
+        switch (estado) {
+          case 'validado':
+            updateData.fecha_validacion = new Date().toISOString()
+            break
+          case 'liquidado':
+            updateData.fecha_liquidacion = new Date().toISOString()
+            break
+          case 'pagado':
+            updateData.fecha_pago = new Date().toISOString()
+            break
+        }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      // Actualizar estado de la quincena
+      const { data, error } = await sb
         .from('liq_quincenas')
         .update(updateData)
         .eq('id', id)
@@ -200,6 +292,7 @@ export function useUpdateEstadoQuincena() {
       queryClient.invalidateQueries({ queryKey: ['quincenas'] })
       queryClient.invalidateQueries({ queryKey: ['quincena', data.id] })
       queryClient.invalidateQueries({ queryKey: ['quincena-actual'] })
+      queryClient.invalidateQueries({ queryKey: ['liquidaciones'] })
     },
   })
 }
