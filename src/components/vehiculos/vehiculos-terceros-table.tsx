@@ -80,8 +80,8 @@ export function VehiculosTercerosTable({
                 <div className="flex items-center gap-2">
                   <Truck className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="font-medium">{vt.vehiculo.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{vt.vehiculo.tipo_vehiculo}</p>
+                    <p className="font-medium">{vt.vehiculo?.nombre || vt.placa}</p>
+                    <p className="text-xs text-muted-foreground">{vt.vehiculo?.tipo_vehiculo || 'Esporádico'}</p>
                   </div>
                 </div>
               </TableCell>

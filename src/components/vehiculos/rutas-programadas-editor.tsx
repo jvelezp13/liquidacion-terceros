@@ -41,7 +41,7 @@ export function RutasProgramadasEditor({ vehiculoTercero }: RutasProgramadasEdit
 
   // Datos
   const { data: rutasProgramadas = [], isLoading: loadingProgramadas } = useRutasProgramadas(vehiculoTercero.id)
-  const { data: rutasDisponibles = [], isLoading: loadingRutas } = useRutasLogisticasVehiculo(vehiculoTercero.vehiculo_id)
+  const { data: rutasDisponibles = [], isLoading: loadingRutas } = useRutasLogisticasVehiculo(vehiculoTercero.vehiculo_id ?? undefined)
   const setRutasMutation = useSetRutasProgramadas()
 
   const isLoading = loadingProgramadas || loadingRutas

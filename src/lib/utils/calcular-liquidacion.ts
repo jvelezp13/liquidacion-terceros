@@ -60,14 +60,25 @@ export function calcularLiquidacionVehiculo(
   const viajesPagados = viajesEjecutados + viajesVariacion
 
   // Calcular flete base según modalidad
+  // Para esporádicos: usar costos propios del vehículo tercero
+  // Para normales: usar costos de vehiculo_costos (PlaneacionLogi)
   let fleteBase = 0
-  if (costos) {
+  const esEsporadico = !vehiculoTercero.vehiculo_id
+
+  if (esEsporadico) {
+    // Vehículo esporádico: usar costos propios
+    if (vehiculoTercero.modalidad_costo === 'por_viaje' && vehiculoTercero.costo_por_viaje) {
+      fleteBase = vehiculoTercero.costo_por_viaje * viajesPagados
+    } else if (vehiculoTercero.modalidad_costo === 'flete_fijo' && vehiculoTercero.flete_mensual) {
+      if (viajesPagados > 0) {
+        fleteBase = vehiculoTercero.flete_mensual / 2
+      }
+    }
+  } else if (costos) {
+    // Vehículo normal: usar costos de PlaneacionLogi
     if (costos.modalidad_tercero === 'por_viaje' && costos.costo_por_viaje) {
-      // Flete = costo por viaje * viajes pagados (ejecutados + variación)
       fleteBase = costos.costo_por_viaje * viajesPagados
     } else if (costos.modalidad_tercero === 'flete_fijo' && costos.flete_mensual) {
-      // Flete fijo mensual dividido por 2 (quincena)
-      // Solo se paga completo si hay al menos 1 viaje pagado
       if (viajesPagados > 0) {
         fleteBase = costos.flete_mensual / 2
       }

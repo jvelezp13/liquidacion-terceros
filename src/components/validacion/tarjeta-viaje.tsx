@@ -72,12 +72,21 @@ export function TarjetaViaje({
     }
   }
 
-  // Obtener nombre de ruta
+  // Obtener nombre de ruta o destino
   const obtenerRuta = () => {
-    const ruta = viaje.estado === 'variacion' && viaje.ruta_variacion
-      ? viaje.ruta_variacion
-      : viaje.ruta
-    return ruta?.nombre || 'Sin ruta'
+    // Si tiene variación, mostrar ruta de variación
+    if (viaje.estado === 'variacion' && viaje.ruta_variacion) {
+      return viaje.ruta_variacion.nombre
+    }
+    // Si tiene ruta programada, mostrarla
+    if (viaje.ruta) {
+      return viaje.ruta.nombre
+    }
+    // Si tiene destino (viaje manual), mostrarlo
+    if (viaje.destino) {
+      return viaje.destino
+    }
+    return 'Sin ruta'
   }
 
   return (

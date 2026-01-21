@@ -13,18 +13,25 @@ import type {
 
 // Tipo para crear vínculo vehículo-contratista
 export interface CreateVehiculoTerceroInput {
-  vehiculo_id: string
+  vehiculo_id?: string | null  // Opcional para vehículos esporádicos
   contratista_id: string
   placa: string
   conductor_nombre?: string
   conductor_telefono?: string
   conductor_documento?: string
   notas?: string
+  // Campos para vehículos esporádicos
+  modalidad_costo?: 'flete_fijo' | 'por_viaje'
+  flete_mensual?: number
+  costo_por_viaje?: number
 }
 
 // Tipo para actualizar vínculo
 export interface UpdateVehiculoTerceroInput extends Partial<Omit<CreateVehiculoTerceroInput, 'vehiculo_id'>> {
   activo?: boolean
+  modalidad_costo?: 'flete_fijo' | 'por_viaje'
+  flete_mensual?: number
+  costo_por_viaje?: number
 }
 
 // Hook para obtener vehículos de Planeación con esquema 'tercero' (sin vincular)
@@ -108,17 +115,7 @@ export function useVehiculosTerceros() {
       // Obtener detalles de cada vehículo
       const result = await Promise.all(
         (vinculados as LiqVehiculoTercero[]).map(async (vt) => {
-          // Obtener vehículo de Planeación
-          const { data: vehiculo } = await sb
-            .from('vehiculos')
-            .select('*')
-            .eq('id', vt.vehiculo_id)
-            .eq('escenario_id', escenario.id)
-            .single()
-
-          if (!vehiculo) return null
-
-          // Obtener contratista
+          // Obtener contratista (siempre requerido)
           const { data: contratista } = await sb
             .from('liq_contratistas')
             .select('*')
@@ -127,18 +124,37 @@ export function useVehiculosTerceros() {
 
           if (!contratista) return null
 
-          // Obtener costos del vehículo
-          const { data: costos } = await sb
-            .from('vehiculos_costos')
-            .select('*')
-            .eq('vehiculo_id', vt.vehiculo_id)
-            .single()
+          // Para vehículos normales: obtener datos de PlaneacionLogi
+          let vehiculo = null
+          let costos = null
+
+          if (vt.vehiculo_id) {
+            const { data: vehiculoData } = await sb
+              .from('vehiculos')
+              .select('*')
+              .eq('id', vt.vehiculo_id)
+              .eq('escenario_id', escenario.id)
+              .single()
+
+            vehiculo = vehiculoData
+
+            // Solo buscar costos si encontramos el vehículo
+            if (vehiculo) {
+              const { data: costosData } = await sb
+                .from('vehiculos_costos')
+                .select('*')
+                .eq('vehiculo_id', vt.vehiculo_id)
+                .single()
+
+              costos = costosData
+            }
+          }
 
           return {
             ...vt,
-            vehiculo: vehiculo as Vehiculo,
+            vehiculo: vehiculo as Vehiculo | null,
             contratista: contratista as LiqContratista,
-            vehiculo_costos: (costos || undefined) as VehiculoCostos | undefined,
+            vehiculo_costos: (costos || null) as VehiculoCostos | null,
           } as LiqVehiculoTerceroConDetalles
         })
       )

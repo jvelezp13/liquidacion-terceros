@@ -454,12 +454,17 @@ export function useGenerarLiquidaciones() {
 
         if (!viajes || viajes.length === 0) continue
 
-        // Obtener costos del vehículo
-        const { data: costos } = await sb
-          .from('vehiculos_costos')
-          .select('*')
-          .eq('vehiculo_id', vehiculo.vehiculo_id)
-          .single()
+        // Obtener costos del vehículo (solo si no es esporádico)
+        const esEsporadico = !vehiculo.vehiculo_id
+        let costos = null
+        if (!esEsporadico) {
+          const { data } = await sb
+            .from('vehiculos_costos')
+            .select('*')
+            .eq('vehiculo_id', vehiculo.vehiculo_id)
+            .single()
+          costos = data
+        }
 
         // Calcular totales
         let viajesEjecutados = 0
@@ -494,7 +499,17 @@ export function useGenerarLiquidaciones() {
 
         // Calcular flete base
         let fleteBase = 0
-        if (costos) {
+        if (esEsporadico) {
+          // Vehículo esporádico: usar costos propios
+          if (vehiculo.modalidad_costo === 'por_viaje' && vehiculo.costo_por_viaje) {
+            fleteBase = vehiculo.costo_por_viaje * viajesPagados
+          } else if (vehiculo.modalidad_costo === 'flete_fijo' && vehiculo.flete_mensual) {
+            if (viajesPagados > 0) {
+              fleteBase = vehiculo.flete_mensual / 2
+            }
+          }
+        } else if (costos) {
+          // Vehículo normal: usar costos de PlaneacionLogi
           if (costos.modalidad_tercero === 'por_viaje' && costos.costo_por_viaje) {
             fleteBase = costos.costo_por_viaje * viajesPagados
           } else if (costos.modalidad_tercero === 'flete_fijo' && costos.flete_mensual) {

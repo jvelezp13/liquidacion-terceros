@@ -29,6 +29,7 @@ export interface UpsertViajeInput {
   vehiculo_tercero_id: string
   fecha: string
   ruta_programada_id?: string | null
+  destino?: string | null
   estado?: EstadoViaje
   costo_combustible?: number
   costo_peajes?: number
@@ -277,6 +278,7 @@ export function useUpsertViaje() {
           .from('liq_viajes_ejecutados')
           .update({
             ruta_programada_id: input.ruta_programada_id,
+            destino: input.destino,
             estado: input.estado || 'pendiente',
             costo_combustible: input.costo_combustible || 0,
             costo_peajes: input.costo_peajes || 0,

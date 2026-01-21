@@ -91,10 +91,10 @@ export default function VehiculoRutasPage({ params }: PageProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
-            {vehiculoTercero.vehiculo.nombre}
+            {vehiculoTercero.vehiculo?.nombre || vehiculoTercero.placa}
           </CardTitle>
           <CardDescription>
-            {vehiculoTercero.vehiculo.tipo_vehiculo}
+            {vehiculoTercero.vehiculo?.tipo_vehiculo || 'Vehículo esporádico'}
           </CardDescription>
         </CardHeader>
         <CardContent>

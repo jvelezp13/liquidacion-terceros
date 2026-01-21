@@ -1,9 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -20,7 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Loader2, Truck } from 'lucide-react'
+import { Loader2, Truck, AlertCircle } from 'lucide-react'
 import {
   vehiculoTerceroSchema,
   type VehiculoTerceroFormData,
@@ -31,10 +34,8 @@ import type { LiqVehiculoTerceroConDetalles, Vehiculo, VehiculoCostos, LiqContra
 type VehiculoSinVincular = Vehiculo & { costos: VehiculoCostos | null }
 
 interface VehiculoTerceroFormProps {
-  // Para crear: vehículos disponibles y contratistas
   vehiculosSinVincular?: VehiculoSinVincular[]
   contratistas?: LiqContratista[]
-  // Para editar: vehículo existente
   vehiculoTercero?: LiqVehiculoTerceroConDetalles
   onSubmit: (data: VehiculoTerceroFormData) => void
   onCancel: () => void
@@ -52,6 +53,10 @@ export function VehiculoTerceroForm({
   isLoadingData = false,
 }: VehiculoTerceroFormProps) {
   const isEditing = !!vehiculoTercero
+  const esEsporadicoExistente = isEditing && !vehiculoTercero.vehiculo_id
+
+  // Estado local para controlar si es esporádico
+  const [esEsporadico, setEsEsporadico] = useState(esEsporadicoExistente)
 
   const form = useForm<VehiculoTerceroFormData>({
     resolver: zodResolver(vehiculoTerceroSchema),
@@ -63,22 +68,43 @@ export function VehiculoTerceroForm({
       conductor_telefono: vehiculoTercero?.conductor_telefono || '',
       conductor_documento: vehiculoTercero?.conductor_documento || '',
       notas: vehiculoTercero?.notas || '',
+      modalidad_costo: vehiculoTercero?.modalidad_costo || undefined,
+      flete_mensual: vehiculoTercero?.flete_mensual || undefined,
+      costo_por_viaje: vehiculoTercero?.costo_por_viaje || undefined,
     },
   })
 
+  const modalidadCosto = form.watch('modalidad_costo')
+
   const handleSubmit = (data: VehiculoTerceroFormData) => {
-    // Limpiar campos vacíos
     const cleanData = {
       ...data,
+      // Si es esporádico, limpiar vehiculo_id
+      vehiculo_id: esEsporadico ? undefined : data.vehiculo_id,
       conductor_nombre: data.conductor_nombre || undefined,
       conductor_telefono: data.conductor_telefono || undefined,
       conductor_documento: data.conductor_documento || undefined,
       notas: data.notas || undefined,
+      // Solo incluir costos si es esporádico
+      modalidad_costo: esEsporadico ? data.modalidad_costo : undefined,
+      flete_mensual: esEsporadico && data.modalidad_costo === 'flete_fijo' ? data.flete_mensual : undefined,
+      costo_por_viaje: esEsporadico && data.modalidad_costo === 'por_viaje' ? data.costo_por_viaje : undefined,
     }
     onSubmit(cleanData)
   }
 
-  // Formatear costo del vehículo
+  // Al cambiar el switch, limpiar campos relacionados
+  const handleEsporadicoChange = (checked: boolean) => {
+    setEsEsporadico(checked)
+    if (checked) {
+      form.setValue('vehiculo_id', '')
+    } else {
+      form.setValue('modalidad_costo', undefined)
+      form.setValue('flete_mensual', undefined)
+      form.setValue('costo_por_viaje', undefined)
+    }
+  }
+
   const formatCosto = (vehiculo: VehiculoSinVincular) => {
     if (!vehiculo.costos) return ''
     const { modalidad_tercero, costo_por_viaje, flete_mensual } = vehiculo.costos
@@ -102,63 +128,169 @@ export function VehiculoTerceroForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-        {/* Selección de vehículo */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground">Vehículo</h3>
+        {/* Tipo de vehículo */}
+        {!isEditing && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Vehículo esporádico</p>
+                <p className="text-sm text-muted-foreground">
+                  Activar si el vehículo no está en PlaneacionLogi
+                </p>
+              </div>
+              <Switch
+                checked={esEsporadico}
+                onCheckedChange={handleEsporadicoChange}
+              />
+            </div>
 
-          {isEditing ? (
-            // Mostrar vehículo actual (no editable)
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <div className="flex items-center gap-3">
-                <Truck className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">{vehiculoTercero.vehiculo.nombre}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {vehiculoTercero.vehiculo.tipo_vehiculo}
-                  </p>
+            {esEsporadico && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Los costos se registrarán como &quot;vehículos esporádicos&quot; en seguimiento.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
+
+        {/* Selección de vehículo (solo si NO es esporádico) */}
+        {!esEsporadico && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Vehículo</h3>
+
+            {isEditing ? (
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <div className="flex items-center gap-3">
+                  <Truck className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">{vehiculoTercero.vehiculo?.nombre || vehiculoTercero.placa}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {vehiculoTercero.vehiculo?.tipo_vehiculo || 'Vehículo esporádico'}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
+            ) : (
+              <FormField
+                control={form.control}
+                name="vehiculo_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vehículo de Planeación *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un vehículo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {vehiculosSinVincular.length === 0 ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            No hay vehículos terceros disponibles
+                          </div>
+                        ) : (
+                          vehiculosSinVincular.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              <div className="flex items-center justify-between gap-4">
+                                <span>{v.nombre}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {v.tipo_vehiculo} {formatCosto(v)}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Vehículos con esquema &quot;tercero&quot; sin vincular
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Campos de costos (solo si ES esporádico) */}
+        {esEsporadico && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Costos del Vehículo</h3>
+
             <FormField
               control={form.control}
-              name="vehiculo_id"
+              name="modalidad_costo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehículo de Planeación *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormLabel>Modalidad de costo *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un vehículo" />
+                        <SelectValue placeholder="Selecciona modalidad" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {vehiculosSinVincular.length === 0 ? (
-                        <div className="p-2 text-center text-sm text-muted-foreground">
-                          No hay vehículos terceros disponibles
-                        </div>
-                      ) : (
-                        vehiculosSinVincular.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            <div className="flex items-center justify-between gap-4">
-                              <span>{v.nombre}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {v.tipo_vehiculo} {formatCosto(v)}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      )}
+                      <SelectItem value="por_viaje">Por viaje</SelectItem>
+                      <SelectItem value="flete_fijo">Flete fijo mensual</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormDescription>
-                    Solo se muestran vehículos con esquema "tercero" sin vincular
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          )}
+
+            {modalidadCosto === 'flete_fijo' && (
+              <FormField
+                control={form.control}
+                name="flete_mensual"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Flete mensual *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      />
+                    </FormControl>
+                    <FormDescription>Se divide por quincena</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {modalidadCosto === 'por_viaje' && (
+              <FormField
+                control={form.control}
+                name="costo_por_viaje"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Costo por viaje *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      />
+                    </FormControl>
+                    <FormDescription>Se multiplica por viajes ejecutados</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Contratista */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-muted-foreground">Contratista</h3>
 
           <FormField
             control={form.control}
@@ -166,7 +298,7 @@ export function VehiculoTerceroForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Contratista (Propietario) *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un contratista" />
@@ -195,6 +327,11 @@ export function VehiculoTerceroForm({
               </FormItem>
             )}
           />
+        </div>
+
+        {/* Placa */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-muted-foreground">Datos del Vehículo</h3>
 
           <FormField
             control={form.control}
@@ -215,7 +352,7 @@ export function VehiculoTerceroForm({
           />
         </div>
 
-        {/* Datos del conductor */}
+        {/* Conductor */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Conductor</h3>
 
@@ -285,7 +422,7 @@ export function VehiculoTerceroForm({
             Cancelar
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Guardando...' : isEditing ? 'Actualizar' : 'Vincular'}
+            {isLoading ? 'Guardando...' : isEditing ? 'Actualizar' : esEsporadico ? 'Crear' : 'Vincular'}
           </Button>
         </div>
       </form>

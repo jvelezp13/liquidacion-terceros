@@ -36,14 +36,17 @@ import {
   useUpdateEstadoViajeConVariacion,
   useGenerarViajesDesdeRutas,
   useConfirmarViajesBatch,
+  useUpsertViaje,
 } from '@/lib/hooks/use-viajes-ejecutados'
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
+import { useVehiculosTerceros } from '@/lib/hooks/use-vehiculos-terceros'
 import {
   CalendarioCompacto,
   TarjetaViaje,
   VistaPorVehiculo,
 } from '@/components/validacion'
+import { ViajeManualForm } from '@/components/validacion/viaje-manual-form'
 import type { EstadoViaje } from '@/types/database.types'
 
 interface PageProps {
@@ -60,12 +63,14 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const { data: quincena, isLoading: quincenaLoading } = useQuincena(resolvedParams.id)
   const { data: viajes = [], isLoading: viajesLoading, refetch: refetchViajes } = useViajesQuincena(resolvedParams.id)
   const { data: rutas = [] } = useRutasLogisticas()
+  const { data: vehiculosTerceros = [] } = useVehiculosTerceros()
 
   const updateEstadoViajeMutation = useUpdateEstadoViaje()
   const updateEstadoViajeConVariacionMutation = useUpdateEstadoViajeConVariacion()
   const confirmarViajesBatchMutation = useConfirmarViajesBatch()
   const generarViajesMutation = useGenerarViajesDesdeRutas()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
+  const upsertViajeMutation = useUpsertViaje()
 
   const isLoading = escenarioLoading || quincenaLoading || viajesLoading
 
@@ -212,6 +217,43 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     )
   }
 
+  // Crear viaje manual para vehículos esporádicos
+  const handleCrearViajeManual = async (data: {
+    vehiculo_tercero_id: string
+    fecha: string
+    destino: string
+    costo_combustible: number
+    costo_peajes: number
+    costo_flete_adicional: number
+    costo_pernocta: number
+    notas?: string
+  }) => {
+    await upsertViajeMutation.mutateAsync(
+      {
+        quincena_id: resolvedParams.id,
+        vehiculo_tercero_id: data.vehiculo_tercero_id,
+        fecha: data.fecha,
+        ruta_programada_id: null, // Sin ruta programada
+        destino: data.destino, // Destino para identificar el viaje
+        estado: 'pendiente',
+        costo_combustible: data.costo_combustible,
+        costo_peajes: data.costo_peajes,
+        costo_flete_adicional: data.costo_flete_adicional,
+        costo_pernocta: data.costo_pernocta,
+        notas: data.notas,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Viaje creado')
+          refetchViajes()
+        },
+        onError: (error) => {
+          toast.error('Error al crear viaje: ' + error.message)
+        },
+      }
+    )
+  }
+
   if (!escenario && !escenarioLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -286,6 +328,15 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
               )}
               Generar viajes
             </Button>
+            {quincena && (
+              <ViajeManualForm
+                vehiculos={vehiculosTerceros}
+                fechaInicio={new Date(quincena.fecha_inicio + 'T00:00:00')}
+                fechaFin={new Date(quincena.fecha_fin + 'T00:00:00')}
+                onSubmit={handleCrearViajeManual}
+                isLoading={upsertViajeMutation.isPending}
+              />
+            )}
             {estadisticas.pendientes === 0 && estadisticas.total > 0 && (
               <Button size="sm" onClick={() => setConfirmValidar(true)}>
                 <CheckCircle className="mr-1 h-3 w-3" />

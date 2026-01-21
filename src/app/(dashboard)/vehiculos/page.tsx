@@ -263,8 +263,8 @@ export default function VehiculosPage() {
             <AlertDialogTitle>Desvincular vehiculo</AlertDialogTitle>
             <AlertDialogDescription>
               ¿Estas seguro de desvincular el vehiculo{' '}
-              <strong>{deletingVehiculo?.placa}</strong> ({deletingVehiculo?.vehiculo.nombre})?
-              Esta accion no elimina el vehiculo de Planeacion Logi.
+              <strong>{deletingVehiculo?.placa}</strong> ({deletingVehiculo?.vehiculo?.nombre || 'Esporádico'})?
+              {deletingVehiculo?.vehiculo && ' Esta accion no elimina el vehiculo de Planeacion Logi.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -57,7 +57,7 @@ export interface LiqContratista {
 
 export interface LiqVehiculoTercero {
   id: string
-  vehiculo_id: string
+  vehiculo_id: string | null  // NULL para vehículos esporádicos
   contratista_id: string
   placa: string
   conductor_nombre: string | null
@@ -65,6 +65,10 @@ export interface LiqVehiculoTercero {
   conductor_documento: string | null
   activo: boolean
   notas: string | null
+  // Campos para vehículos esporádicos
+  modalidad_costo: 'flete_fijo' | 'por_viaje' | null
+  flete_mensual: number | null
+  costo_por_viaje: number | null
   created_at: string
   updated_at: string
 }
@@ -111,6 +115,7 @@ export interface LiqViajeEjecutado {
   fecha: string
   ruta_programada_id: string | null
   ruta_variacion_id: string | null // Ruta ejecutada cuando es diferente a la programada
+  destino: string | null // Destino del viaje (para viajes manuales sin ruta programada)
   estado: string
   municipios_variacion: Json | null
   costo_combustible: number
@@ -326,9 +331,9 @@ export interface LiqLiquidacionDetalle extends LiqLiquidacion {
 
 // Vehículo tercero con datos completos
 export interface LiqVehiculoTerceroConDetalles extends LiqVehiculoTercero {
-  vehiculo: Vehiculo
+  vehiculo: Vehiculo | null  // NULL para vehículos esporádicos
   contratista: LiqContratista
-  vehiculo_costos?: VehiculoCostos
+  vehiculo_costos?: VehiculoCostos | null
 }
 
 // Resumen de pago por contratista
@@ -403,7 +408,7 @@ export type Database = {
         Row: LiqVehiculoTercero
         Insert: {
           id?: string
-          vehiculo_id: string
+          vehiculo_id?: string | null  // NULL para esporádicos
           contratista_id: string
           placa: string
           conductor_nombre?: string | null
@@ -411,12 +416,15 @@ export type Database = {
           conductor_documento?: string | null
           activo?: boolean
           notas?: string | null
+          modalidad_costo?: 'flete_fijo' | 'por_viaje' | null
+          flete_mensual?: number | null
+          costo_por_viaje?: number | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          vehiculo_id?: string
+          vehiculo_id?: string | null
           contratista_id?: string
           placa?: string
           conductor_nombre?: string | null
@@ -424,6 +432,9 @@ export type Database = {
           conductor_documento?: string | null
           activo?: boolean
           notas?: string | null
+          modalidad_costo?: 'flete_fijo' | 'por_viaje' | null
+          flete_mensual?: number | null
+          costo_por_viaje?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -500,6 +511,7 @@ export type Database = {
           fecha: string
           ruta_programada_id?: string | null
           ruta_variacion_id?: string | null
+          destino?: string | null
           estado?: string
           municipios_variacion?: Json | null
           costo_combustible?: number
@@ -523,6 +535,7 @@ export type Database = {
           fecha?: string
           ruta_programada_id?: string | null
           ruta_variacion_id?: string | null
+          destino?: string | null
           estado?: string
           municipios_variacion?: Json | null
           costo_combustible?: number
