@@ -217,11 +217,12 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     )
   }
 
-  // Crear viaje manual para vehículos esporádicos
+  // Crear viaje adicional (para cualquier vehículo)
   const handleCrearViajeManual = async (data: {
     vehiculo_tercero_id: string
     fecha: string
-    destino: string
+    ruta_programada_id?: string
+    destino?: string
     costo_combustible: number
     costo_peajes: number
     costo_flete_adicional: number
@@ -233,8 +234,8 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         quincena_id: resolvedParams.id,
         vehiculo_tercero_id: data.vehiculo_tercero_id,
         fecha: data.fecha,
-        ruta_programada_id: null, // Sin ruta programada
-        destino: data.destino, // Destino para identificar el viaje
+        ruta_programada_id: data.ruta_programada_id || null,
+        destino: data.destino || null,
         estado: 'pendiente',
         costo_combustible: data.costo_combustible,
         costo_peajes: data.costo_peajes,
