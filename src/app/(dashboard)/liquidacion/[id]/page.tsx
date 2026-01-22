@@ -7,12 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -35,10 +29,8 @@ import { useQuincena, useUpdateEstadoQuincena, formatearQuincena } from '@/lib/h
 import {
   useLiquidacionesQuincena,
   useGenerarLiquidaciones,
-  useUpdateEstadoLiquidacion,
-  type LiquidacionConDeducciones,
 } from '@/lib/hooks/use-liquidaciones'
-import { LiquidacionesTable, LiquidacionDetalle } from '@/components/liquidacion'
+import { LiquidacionesTable } from '@/components/liquidacion'
 import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 
 // Variante de badge por estado
@@ -78,8 +70,6 @@ export default function LiquidacionDetallePage() {
   const router = useRouter()
   const quincenaId = params.id as string
 
-  const [selectedLiquidacion, setSelectedLiquidacion] = useState<LiquidacionConDeducciones | null>(null)
-  const [showDetalleDialog, setShowDetalleDialog] = useState(false)
   const [showCerrarDialog, setShowCerrarDialog] = useState(false)
 
   const { data: quincena, isLoading: loadingQuincena } = useQuincena(quincenaId)
@@ -87,9 +77,8 @@ export default function LiquidacionDetallePage() {
 
   const generarMutation = useGenerarLiquidaciones()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
-  const updateEstadoLiquidacionMutation = useUpdateEstadoLiquidacion()
 
-  // Verificar si todas las liquidaciones están aprobadas
+  // Verificar si todas las liquidaciones estan aprobadas
   const todasAprobadas = liquidaciones?.every((liq) => liq.estado === 'aprobado') || false
   const algunaBorrador = liquidaciones?.some((liq) => liq.estado === 'borrador') || false
 
@@ -112,34 +101,6 @@ export default function LiquidacionDetallePage() {
         },
         onError: (error) => {
           toast.error('Error al generar liquidaciones: ' + error.message)
-        },
-      }
-    )
-  }
-
-  const handleVerDetalle = (liquidacion: LiquidacionConDeducciones) => {
-    setSelectedLiquidacion(liquidacion)
-    setShowDetalleDialog(true)
-  }
-
-  const handleEditarAjuste = (liquidacion: LiquidacionConDeducciones) => {
-    setSelectedLiquidacion(liquidacion)
-    setShowDetalleDialog(true)
-  }
-
-  const handleAprobar = (liquidacion: LiquidacionConDeducciones) => {
-    updateEstadoLiquidacionMutation.mutate(
-      {
-        id: liquidacion.id,
-        estado: 'aprobado',
-        quincenaId,
-      },
-      {
-        onSuccess: () => {
-          toast.success('Liquidacion aprobada')
-        },
-        onError: (error) => {
-          toast.error('Error: ' + error.message)
         },
       }
     )
@@ -280,8 +241,8 @@ export default function LiquidacionDetallePage() {
             <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
               <Calculator className="h-5 w-5" />
               <span>
-                Hay liquidaciones en borrador. Revisa cada una, agrega deducciones si es necesario
-                y aprueba antes de cerrar la liquidacion.
+                Hay liquidaciones en borrador. Expande cada fila para revisar el desglose,
+                agregar deducciones y aprobar.
               </span>
             </div>
           </CardContent>
@@ -299,33 +260,12 @@ export default function LiquidacionDetallePage() {
         <CardContent>
           <LiquidacionesTable
             liquidaciones={liquidaciones || []}
-            onVerDetalle={handleVerDetalle}
-            onEditarAjuste={handleEditarAjuste}
-            onAprobar={handleAprobar}
-            isLoading={updateEstadoLiquidacionMutation.isPending}
+            quincenaId={quincenaId}
+            isLoading={generarMutation.isPending}
             esEditable={esEditable}
           />
         </CardContent>
       </Card>
-
-      {/* Dialog para ver detalle */}
-      <Dialog open={showDetalleDialog} onOpenChange={setShowDetalleDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Detalle de Liquidacion - {selectedLiquidacion?.vehiculo_tercero?.placa}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedLiquidacion && (
-            <LiquidacionDetalle
-              liquidacion={selectedLiquidacion}
-              quincenaId={quincenaId}
-              esEditable={esEditable}
-              onClose={() => setShowDetalleDialog(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog para confirmar cierre */}
       <AlertDialog open={showCerrarDialog} onOpenChange={setShowCerrarDialog}>
