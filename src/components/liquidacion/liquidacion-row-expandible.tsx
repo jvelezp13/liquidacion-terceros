@@ -181,7 +181,10 @@ export function LiquidacionRowExpandible({
           {formatCOP(liq.total_a_pagar)}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
-          <Badge variant={getBadgeVariant(liq.estado)}>
+          <Badge
+            variant={getBadgeVariant(liq.estado)}
+            className={liq.estado === 'aprobado' ? 'bg-green-600 hover:bg-green-700' : ''}
+          >
             {liq.estado.charAt(0).toUpperCase() + liq.estado.slice(1)}
           </Badge>
         </TableCell>
