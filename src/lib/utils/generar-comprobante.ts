@@ -1,12 +1,19 @@
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
+import type { ViajesPorLiquidacion, DesgloseRuta } from '@/lib/hooks/use-viajes-por-liquidacion'
 import type { LiqQuincena, LiqContratista } from '@/types'
 import { formatCOP } from './calcular-liquidacion'
 import { formatearQuincena } from '@/lib/hooks/use-quincenas'
 
+// Helper para calcular km totales
+function calcularTotalKm(desgloseRutas: DesgloseRuta[]): number {
+  return desgloseRutas.reduce((sum, dr) => sum + dr.totalKm, 0)
+}
+
 // Generar HTML de comprobante individual por vehiculo
 export function generarComprobanteHTML(
   liquidacion: LiquidacionConDeducciones,
-  quincena: LiqQuincena
+  quincena: LiqQuincena,
+  viajesData?: ViajesPorLiquidacion
 ): string {
   const vt = liquidacion.vehiculo_tercero
   const contratista = vt?.contratista
@@ -156,6 +163,37 @@ export function generarComprobanteHTML(
       color: #999;
       text-align: center;
     }
+    .desglose-section {
+      margin-bottom: 25px;
+    }
+    .desglose-section h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #333;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #ddd;
+    }
+    .desglose-table th {
+      background: #e9e9e9;
+      font-size: 10px;
+    }
+    .desglose-table td {
+      font-size: 11px;
+    }
+    .desglose-total {
+      background: #f0f0f0 !important;
+      font-weight: 600;
+    }
+    .km-badge {
+      display: inline-block;
+      background: #e0f0e0;
+      color: #2a7a2a;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      margin-left: 10px;
+    }
     @media print {
       body {
         padding: 0;
@@ -183,11 +221,57 @@ export function generarComprobanteHTML(
       <p>${contratista?.nombre || 'Sin contratista'}</p>
       <span>${contratista?.tipo_documento || ''} ${contratista?.numero_documento || ''}</span>
     </div>
+    ${vt?.conductor_nombre ? `
     <div class="info-box">
       <h3>Conductor</h3>
-      <p>${vt?.conductor_nombre || 'No asignado'}</p>
+      <p>${vt.conductor_nombre}</p>
     </div>
+    ` : ''}
   </div>
+
+  ${viajesData && viajesData.desgloseRutas.length > 0 ? `
+  <div class="desglose-section">
+    <h3>Desglose por Ruta ${calcularTotalKm(viajesData.desgloseRutas) > 0 ? `<span class="km-badge">${calcularTotalKm(viajesData.desgloseRutas).toLocaleString('es-CO')} km recorridos</span>` : ''}</h3>
+    <table class="desglose-table">
+      <thead>
+        <tr>
+          <th>Ruta</th>
+          <th style="text-align: center">Viajes</th>
+          <th style="text-align: right">Km</th>
+          <th style="text-align: right">Combustible</th>
+          <th style="text-align: right">Peajes</th>
+          <th style="text-align: right">Adicionales</th>
+          <th style="text-align: right">Pernocta</th>
+          <th style="text-align: right">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${viajesData.desgloseRutas.map((dr: DesgloseRuta) => `
+        <tr>
+          <td>${dr.rutaNombre}</td>
+          <td style="text-align: center">${dr.viajesCount}</td>
+          <td class="number">${dr.totalKm > 0 ? dr.totalKm.toLocaleString('es-CO') : '-'}</td>
+          <td class="number">${dr.totalCombustible > 0 ? formatCOP(dr.totalCombustible) : '-'}</td>
+          <td class="number">${dr.totalPeajes > 0 ? formatCOP(dr.totalPeajes) : '-'}</td>
+          <td class="number">${dr.totalAdicionales > 0 ? formatCOP(dr.totalAdicionales) : '-'}</td>
+          <td class="number">${dr.totalPernocta > 0 ? formatCOP(dr.totalPernocta) + (dr.nochesPernocta > 0 ? ` (${dr.nochesPernocta}n)` : '') : '-'}</td>
+          <td class="number">${formatCOP(dr.subtotal)}</td>
+        </tr>
+        `).join('')}
+        <tr class="desglose-total">
+          <td><strong>Total</strong></td>
+          <td style="text-align: center"><strong>${viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.viajesCount, 0)}</strong></td>
+          <td class="number"><strong>${calcularTotalKm(viajesData.desgloseRutas) > 0 ? calcularTotalKm(viajesData.desgloseRutas).toLocaleString('es-CO') : '-'}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalCombustible, 0))}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalPeajes, 0))}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalAdicionales, 0))}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalPernocta, 0))}${viajesData.totales.nochesPernocta > 0 ? ` (${viajesData.totales.nochesPernocta}n)` : ''}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.subtotal, 0))}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  ` : ''}
 
   <table>
     <thead>
@@ -228,7 +312,7 @@ export function generarComprobanteHTML(
       ` : ''}
       ${liquidacion.total_pernocta > 0 ? `
       <tr>
-        <td>Pernocta</td>
+        <td>Pernocta${viajesData?.totales.nochesPernocta ? ` (${viajesData.totales.nochesPernocta} noches)` : ''}</td>
         <td class="number">${formatCOP(liquidacion.total_pernocta)}</td>
       </tr>
       ` : ''}
@@ -338,8 +422,9 @@ export function generarResumenConsolidadoHTML(
       subtotal: acc.subtotal + c.totalSubtotal,
       deducciones: acc.deducciones + c.totalDeducciones,
       aPagar: acc.aPagar + c.totalAPagar,
+      viajes: acc.viajes + c.liquidaciones.reduce((s, l) => s + l.viajes_ejecutados + (l.viajes_variacion ?? 0), 0),
     }),
-    { subtotal: 0, deducciones: 0, aPagar: 0 }
+    { subtotal: 0, deducciones: 0, aPagar: 0, viajes: 0 }
   )
 
   return `
@@ -460,6 +545,9 @@ export function generarResumenConsolidadoHTML(
   <div class="header">
     <h1>Resumen de Liquidacion</h1>
     <h2>${formatearQuincena(quincena)}</h2>
+    <p style="margin-top: 10px; font-size: 13px; color: #333;">
+      <strong>Total: ${totalGeneral.viajes} viajes | ${formatCOP(totalGeneral.aPagar)}</strong>
+    </p>
   </div>
 
   <!-- Resumen general -->

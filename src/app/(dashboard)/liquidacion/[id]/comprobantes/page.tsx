@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useQuincena, formatearQuincena } from '@/lib/hooks/use-quincenas'
 import { useLiquidacionesQuincena, type LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
+import { useViajesQuincenaCompleta } from '@/lib/hooks/use-viajes-por-liquidacion'
 import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 import {
   generarComprobanteHTML,
@@ -43,12 +44,21 @@ export default function ComprobantesPage() {
 
   const { data: quincena, isLoading: loadingQuincena } = useQuincena(quincenaId)
   const { data: liquidaciones, isLoading: loadingLiquidaciones } = useLiquidacionesQuincena(quincenaId)
+  const { data: viajesMap } = useViajesQuincenaCompleta(quincenaId)
 
   const consolidados = liquidaciones ? agruparPorContratista(liquidaciones) : []
 
+  // Helper para obtener viajes de una liquidacion
+  const getViajesLiquidacion = (liquidacion: LiquidacionConDeducciones) => {
+    const vtId = liquidacion.vehiculo_tercero?.id
+    if (!vtId || !viajesMap) return undefined
+    return viajesMap.get(vtId)
+  }
+
   const handleDescargarComprobante = (liquidacion: LiquidacionConDeducciones) => {
     if (!quincena) return
-    const html = generarComprobanteHTML(liquidacion, quincena)
+    const viajesData = getViajesLiquidacion(liquidacion)
+    const html = generarComprobanteHTML(liquidacion, quincena, viajesData)
     const placa = liquidacion.vehiculo_tercero?.placa || 'sin-placa'
     const nombreArchivo = `comprobante-${placa}-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.html`
     descargarHTML(html, nombreArchivo)
@@ -56,7 +66,8 @@ export default function ComprobantesPage() {
 
   const handleImprimirComprobante = (liquidacion: LiquidacionConDeducciones) => {
     if (!quincena) return
-    const html = generarComprobanteHTML(liquidacion, quincena)
+    const viajesData = getViajesLiquidacion(liquidacion)
+    const html = generarComprobanteHTML(liquidacion, quincena, viajesData)
     imprimirHTML(html)
   }
 
@@ -75,9 +86,10 @@ export default function ComprobantesPage() {
 
   const handleDescargarTodos = () => {
     if (!quincena || !liquidaciones) return
-    // Descargar cada comprobante individual
+    // Descargar cada comprobante individual con sus datos de viajes
     for (const liq of liquidaciones) {
-      const html = generarComprobanteHTML(liq, quincena)
+      const viajesData = getViajesLiquidacion(liq)
+      const html = generarComprobanteHTML(liq, quincena, viajesData)
       const placa = liq.vehiculo_tercero?.placa || 'sin-placa'
       const nombreArchivo = `comprobante-${placa}-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.html`
       descargarHTML(html, nombreArchivo)
@@ -201,6 +213,7 @@ export default function ComprobantesPage() {
                         <TableCell>
                           <Badge
                             variant={liq.estado === 'aprobado' ? 'default' : 'secondary'}
+                            className={liq.estado === 'aprobado' ? 'bg-green-600 hover:bg-green-700' : ''}
                           >
                             {liq.estado.charAt(0).toUpperCase() + liq.estado.slice(1)}
                           </Badge>
