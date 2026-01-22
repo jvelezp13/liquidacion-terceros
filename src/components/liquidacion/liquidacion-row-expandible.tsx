@@ -207,9 +207,11 @@ export function LiquidacionRowExpandible({
                           <tr className="border-b text-muted-foreground">
                             <th className="text-left py-1.5 font-medium">Ruta</th>
                             <th className="text-right py-1.5 font-medium">Viajes</th>
+                            <th className="text-right py-1.5 font-medium">Km</th>
                             <th className="text-right py-1.5 font-medium">Combustible</th>
                             <th className="text-right py-1.5 font-medium">Peajes</th>
                             <th className="text-right py-1.5 font-medium">Adicionales</th>
+                            <th className="text-right py-1.5 font-medium">Pernocta</th>
                             <th className="text-right py-1.5 font-medium">Subtotal</th>
                           </tr>
                         </thead>
@@ -218,9 +220,11 @@ export function LiquidacionRowExpandible({
                             <tr key={ruta.rutaId} className="border-b border-dashed">
                               <td className="py-1.5">{ruta.rutaNombre}</td>
                               <td className="text-right py-1.5 font-mono">{ruta.viajesCount}</td>
+                              <td className="text-right py-1.5 font-mono text-muted-foreground">{ruta.totalKm.toFixed(0)}</td>
                               <td className="text-right py-1.5 font-mono">{formatCOP(ruta.totalCombustible)}</td>
                               <td className="text-right py-1.5 font-mono">{formatCOP(ruta.totalPeajes)}</td>
                               <td className="text-right py-1.5 font-mono">{formatCOP(ruta.totalAdicionales)}</td>
+                              <td className="text-right py-1.5 font-mono">{formatCOP(ruta.totalPernocta)}</td>
                               <td className="text-right py-1.5 font-mono font-medium">{formatCOP(ruta.subtotal)}</td>
                             </tr>
                           ))}

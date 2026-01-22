@@ -530,6 +530,13 @@ interface CostoDiaPlanificacion {
   pernocta: number
 }
 
+// Tipo para almacenar datos de planificación de una ruta
+interface DatosRutaPlanificacion {
+  costos: CostoDiaPlanificacion[]
+  peajesCiclo: number
+  frecuencia: string
+}
+
 // Mapeo de día ISO (1-7) a nombre de día
 const DIAS_NOMBRE: Record<number, string> = {
   1: 'lunes',
@@ -596,12 +603,13 @@ export function useGenerarViajesDesdeRutas() {
       }
 
       // Paso 2: Obtener costos de planificación para todas las rutas
-      const costosPorRuta = new Map<string, CostoDiaPlanificacion[]>()
+      // Incluye peajes_ciclo y frecuencia para cálculos correctos
+      const datosPorRuta = new Map<string, DatosRutaPlanificacion>()
 
       if (escenarioId && rutasUnicas.size > 0) {
         const { data: planificaciones } = await sb
           .from('planificacion_lejanias')
-          .select('ruta_id, costos_por_dia, frecuencia')
+          .select('ruta_id, costos_por_dia, frecuencia, peajes_ciclo')
           .eq('escenario_id', escenarioId)
           .eq('tipo', 'logistico')
           .in('ruta_id', Array.from(rutasUnicas))
@@ -609,7 +617,11 @@ export function useGenerarViajesDesdeRutas() {
         if (planificaciones) {
           for (const plan of planificaciones) {
             if (plan.ruta_id && plan.costos_por_dia && Array.isArray(plan.costos_por_dia)) {
-              costosPorRuta.set(plan.ruta_id, plan.costos_por_dia as CostoDiaPlanificacion[])
+              datosPorRuta.set(plan.ruta_id, {
+                costos: plan.costos_por_dia as CostoDiaPlanificacion[],
+                peajesCiclo: plan.peajes_ciclo || 0,
+                frecuencia: plan.frecuencia || 'semanal',
+              })
             }
           }
         }
@@ -662,24 +674,32 @@ export function useGenerarViajesDesdeRutas() {
           let costoPernocta = 0
           let requierePernocta = false
           let nochesPernocta = 0
+          let kmRecorridos = 0
 
-          const costosDia = costosPorRuta.get(rutaProgramadaId)
-          if (costosDia) {
+          const datosRuta = datosPorRuta.get(rutaProgramadaId)
+          if (datosRuta) {
             const diaNombre = DIAS_NOMBRE[diaISO]
-            const semana = getSemanaQuincena(fecha, fechaInicioDate)
 
-            // Buscar el costo para este día y semana específica
-            const costoDia = costosDia.find(
-              (c) => c.dia === diaNombre && c.semana === semana
-            )
+            // FIX 1: Para frecuencia semanal, ignorar número de semana
+            // El ciclo se repite cada semana, así que buscamos solo por día
+            const costoDia = datosRuta.costos.find((c) => c.dia === diaNombre)
 
             if (costoDia) {
+              // FIX 5: Guardar km recorridos
+              kmRecorridos = costoDia.km_total || 0
+
               costoCombustible = costoDia.combustible || 0
-              costoPeajes = costoDia.peajes || 0
               costoAdicionales = costoDia.adicionales || 0
-              costoPernocta = costoDia.pernocta || 0
+
+              // FIX 4: Pernocta al 50% (solo el conductor, el copiloto no va con terceros)
+              costoPernocta = Math.round((costoDia.pernocta || 0) / 2)
               requierePernocta = costoPernocta > 0
               nochesPernocta = requierePernocta ? 1 : 0
+
+              // FIX 2: Peajes distribuidos proporcionalmente entre días del ciclo
+              // peajes_ciclo es el total del ciclo, lo dividimos entre la cantidad de días
+              const diasCiclo = datosRuta.costos.length || 1
+              costoPeajes = Math.round(datosRuta.peajesCiclo / diasCiclo)
             }
           }
 
@@ -700,6 +720,7 @@ export function useGenerarViajesDesdeRutas() {
               costo_pernocta: costoPernocta,
               requiere_pernocta: requierePernocta,
               noches_pernocta: nochesPernocta,
+              km_recorridos: kmRecorridos,
               costo_total: costoTotal,
             })
             .select()

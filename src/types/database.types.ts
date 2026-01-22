@@ -1257,6 +1257,7 @@ export type Database = {
           fecha: string
           fecha_validacion: string | null
           id: string
+          km_recorridos: number | null
           municipios_variacion: Json | null
           noches_pernocta: number | null
           notas: string | null
@@ -1282,6 +1283,7 @@ export type Database = {
           fecha: string
           fecha_validacion?: string | null
           id?: string
+          km_recorridos?: number | null
           municipios_variacion?: Json | null
           noches_pernocta?: number | null
           notas?: string | null
@@ -1307,6 +1309,7 @@ export type Database = {
           fecha?: string
           fecha_validacion?: string | null
           id?: string
+          km_recorridos?: number | null
           municipios_variacion?: Json | null
           noches_pernocta?: number | null
           notas?: string | null

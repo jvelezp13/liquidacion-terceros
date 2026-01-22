@@ -15,6 +15,7 @@ export interface DesgloseRuta {
   rutaId: string
   rutaNombre: string
   viajesCount: number
+  totalKm: number
   totalCombustible: number
   totalPeajes: number
   totalAdicionales: number
@@ -152,19 +153,21 @@ export function useViajesPorLiquidacion(
 
         const totales = viajesRuta.reduce(
           (acc, v) => ({
+            km: acc.km + ((v as LiqViajeEjecutado & { km_recorridos?: number }).km_recorridos || 0),
             combustible: acc.combustible + (v.costo_combustible || 0),
             peajes: acc.peajes + (v.costo_peajes || 0),
             adicionales: acc.adicionales + (v.costo_flete_adicional || 0),
             pernocta: acc.pernocta + (v.costo_pernocta || 0),
             nochesPernocta: acc.nochesPernocta + (v.noches_pernocta || 0),
           }),
-          { combustible: 0, peajes: 0, adicionales: 0, pernocta: 0, nochesPernocta: 0 }
+          { km: 0, combustible: 0, peajes: 0, adicionales: 0, pernocta: 0, nochesPernocta: 0 }
         )
 
         desgloseRutas.push({
           rutaId,
           rutaNombre: ruta?.nombre || 'Ruta desconocida',
           viajesCount: viajesRuta.length,
+          totalKm: totales.km,
           totalCombustible: totales.combustible,
           totalPeajes: totales.peajes,
           totalAdicionales: totales.adicionales,
