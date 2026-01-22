@@ -5,28 +5,31 @@ import { createClient } from '@/lib/supabase/client'
 import { useActiveTenant } from './use-tenant'
 import type { Escenario } from '@/types/database.types'
 
-// Hook para obtener el escenario activo de Planeación Logi
-// Filtra por el tenant activo del usuario
-export function useEscenarioActivo() {
+/**
+ * Hook para obtener el escenario de PRODUCCION del tenant
+ * Este es el escenario que se usa para operaciones reales (liquidaciones, seguimiento)
+ * Separado del escenario "activo" que es para navegacion en PlaneacionLogi
+ */
+export function useEscenarioProduccion() {
   const supabase = createClient()
   const { data: tenant, isLoading: loadingTenant } = useActiveTenant()
 
   return useQuery({
-    queryKey: ['escenario-activo', tenant?.id],
+    queryKey: ['escenario-produccion', tenant?.id],
     queryFn: async (): Promise<Escenario | null> => {
       if (!tenant?.id) return null
 
-      // Buscar el escenario activo del tenant actual
+      // Buscar el escenario de PRODUCCION del tenant actual
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('escenarios')
         .select('*')
-        .eq('activo', true)
+        .eq('es_produccion', true)
         .eq('tenant_id', tenant.id)
         .single()
 
       if (error) {
-        // Si no hay escenario activo, retornamos null
+        // Si no hay escenario de produccion, retornamos null
         if (error.code === 'PGRST116') {
           return null
         }
@@ -38,6 +41,15 @@ export function useEscenarioActivo() {
     // Solo ejecutar cuando tengamos el tenant
     enabled: !loadingTenant && !!tenant?.id,
   })
+}
+
+/**
+ * @deprecated Usar useEscenarioProduccion para operaciones de liquidacion
+ * Mantener solo para compatibilidad
+ */
+export function useEscenarioActivo() {
+  // Redirige al hook de produccion
+  return useEscenarioProduccion()
 }
 
 // Hook para obtener un escenario específico por ID
