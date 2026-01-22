@@ -24,3 +24,6 @@ export * from './use-liquidaciones'
 
 // Historial de Pagos
 export * from './use-historial-pagos'
+
+// Costos de Ruta Planificada (desde PlaneacionLogi)
+export * from './use-costos-ruta-planificada'
