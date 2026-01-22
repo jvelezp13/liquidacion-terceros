@@ -81,6 +81,28 @@ export function LiquidacionDetalle({
     )
   }
 
+  const handleLimpiarAjuste = () => {
+    updateAjusteMutation.mutate(
+      {
+        id: liquidacion.id,
+        ajuste_monto: 0,
+        ajuste_descripcion: undefined,
+        quincenaId,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Ajuste eliminado')
+          setAjusteMonto('0')
+          setAjusteDescripcion('')
+          setShowAjusteDialog(false)
+        },
+        onError: (error) => {
+          toast.error('Error: ' + error.message)
+        },
+      }
+    )
+  }
+
   const handleAgregarDeduccion = () => {
     const monto = parseFloat(deduccionMonto)
     if (!monto || monto <= 0) {
@@ -326,16 +348,29 @@ export function LiquidacionDetalle({
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAjusteDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleGuardarAjuste} disabled={updateAjusteMutation.isPending}>
-              {updateAjusteMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Guardar
-            </Button>
+          <DialogFooter className="flex justify-between sm:justify-between">
+            <div>
+              {liquidacion.ajuste_monto !== 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={handleLimpiarAjuste}
+                  disabled={updateAjusteMutation.isPending}
+                >
+                  Limpiar ajuste
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAjusteDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleGuardarAjuste} disabled={updateAjusteMutation.isPending}>
+                {updateAjusteMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Guardar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
