@@ -30,7 +30,6 @@ import {
   DollarSign,
   Loader2,
 } from 'lucide-react'
-import Link from 'next/link'
 import { toast } from 'sonner'
 import { useQuincenasPorEstado, formatearQuincena } from '@/lib/hooks/use-quincenas'
 import { useLiquidacionesQuincena } from '@/lib/hooks/use-liquidaciones'
@@ -47,6 +46,7 @@ export default function PagosPage() {
   const router = useRouter()
   const [selectedQuincena, setSelectedQuincena] = useState<LiqQuincena | null>(null)
   const [showRegistrarDialog, setShowRegistrarDialog] = useState(false)
+  const [showConfirmarPagadaDialog, setShowConfirmarPagadaDialog] = useState(false)
   const [selectedContratista, setSelectedContratista] = useState<ConsolidadoContratista | null>(null)
   const [referenciaPago, setReferenciaPago] = useState('')
   const [bancoOrigen, setBancoOrigen] = useState('')
@@ -96,6 +96,7 @@ export default function PagosPage() {
     marcarPagadaMutation.mutate(selectedQuincena.id, {
       onSuccess: () => {
         toast.success('Quincena marcada como pagada')
+        setShowConfirmarPagadaDialog(false)
         setSelectedQuincena(null)
       },
       onError: (error) => {
@@ -115,19 +116,11 @@ export default function PagosPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pagos</h1>
-          <p className="text-muted-foreground">
-            Registra y gestiona los pagos a contratistas
-          </p>
-        </div>
-        <Link href="/pagos/exportar">
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Exportar Pagos
-          </Button>
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Pagos</h1>
+        <p className="text-muted-foreground">
+          Registra y gestiona los pagos a contratistas
+        </p>
       </div>
 
       {/* Quincenas liquidadas pendientes de pago */}
@@ -200,12 +193,8 @@ export default function PagosPage() {
                 <Download className="mr-2 h-4 w-4" />
                 Exportar CSV
               </Button>
-              <Button onClick={handleMarcarPagada} disabled={marcarPagadaMutation.isPending}>
-                {marcarPagadaMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                )}
+              <Button onClick={() => setShowConfirmarPagadaDialog(true)}>
+                <CheckCircle className="mr-2 h-4 w-4" />
                 Marcar Todo Pagado
               </Button>
             </div>
@@ -321,6 +310,29 @@ export default function PagosPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Registrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para confirmar marcar como pagada */}
+      <Dialog open={showConfirmarPagadaDialog} onOpenChange={setShowConfirmarPagadaDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Pago Completado</DialogTitle>
+            <DialogDescription>
+              ¿Ya exportaste el archivo de pagos? Una vez marcada como pagada, esta quincena no aparecera en la lista de exportacion.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmarPagadaDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleMarcarPagada} disabled={marcarPagadaMutation.isPending}>
+              {marcarPagadaMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Si, marcar como pagada
             </Button>
           </DialogFooter>
         </DialogContent>
