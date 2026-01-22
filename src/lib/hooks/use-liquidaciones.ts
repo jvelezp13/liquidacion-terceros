@@ -526,6 +526,11 @@ export function useGenerarLiquidaciones() {
           totalFletesAdicionales +
           totalPernocta
 
+        // Calcular retención 1% automática
+        const retencion1Porciento = Math.round(subtotal * 0.01)
+        const totalDeducciones = retencion1Porciento
+        const totalAPagar = Math.round(subtotal) - totalDeducciones
+
         // Verificar si ya existe liquidación
         const { data: existente } = await sb
           .from('liq_liquidaciones')
@@ -534,8 +539,10 @@ export function useGenerarLiquidaciones() {
           .eq('vehiculo_tercero_id', vehiculo.id)
           .single()
 
+        let liquidacionId: string | null = null
+
         if (existente) {
-          // Actualizar
+          // Actualizar liquidación
           const { data: updated, error: updateError } = await sb
             .from('liq_liquidaciones')
             .update({
@@ -548,7 +555,8 @@ export function useGenerarLiquidaciones() {
               total_fletes_adicionales: Math.round(totalFletesAdicionales),
               total_pernocta: Math.round(totalPernocta),
               subtotal: Math.round(subtotal),
-              total_a_pagar: Math.round(subtotal), // Se ajustará con deducciones
+              total_deducciones: totalDeducciones,
+              total_a_pagar: totalAPagar,
             })
             .eq('id', existente.id)
             .select()
@@ -556,9 +564,10 @@ export function useGenerarLiquidaciones() {
 
           if (!updateError && updated) {
             liquidacionesCreadas.push(updated as LiqLiquidacion)
+            liquidacionId = existente.id
           }
         } else {
-          // Insertar
+          // Insertar nueva liquidación
           const { data: inserted, error: insertError } = await sb
             .from('liq_liquidaciones')
             .insert({
@@ -573,8 +582,8 @@ export function useGenerarLiquidaciones() {
               total_fletes_adicionales: Math.round(totalFletesAdicionales),
               total_pernocta: Math.round(totalPernocta),
               subtotal: Math.round(subtotal),
-              total_deducciones: 0,
-              total_a_pagar: Math.round(subtotal),
+              total_deducciones: totalDeducciones,
+              total_a_pagar: totalAPagar,
               estado: 'borrador',
             })
             .select()
@@ -582,6 +591,36 @@ export function useGenerarLiquidaciones() {
 
           if (!insertError && inserted) {
             liquidacionesCreadas.push(inserted as LiqLiquidacion)
+            liquidacionId = (inserted as LiqLiquidacion).id
+          }
+        }
+
+        // Crear o actualizar deducción de retención 1% automática
+        if (liquidacionId && retencion1Porciento > 0) {
+          // Verificar si ya existe la deducción de retención
+          const { data: deduccionExistente } = await sb
+            .from('liq_liquidacion_deducciones')
+            .select('id')
+            .eq('liquidacion_id', liquidacionId)
+            .eq('tipo', 'retencion_1_porciento')
+            .single()
+
+          if (deduccionExistente) {
+            // Actualizar monto de retención
+            await sb
+              .from('liq_liquidacion_deducciones')
+              .update({ monto: retencion1Porciento })
+              .eq('id', deduccionExistente.id)
+          } else {
+            // Crear nueva deducción de retención
+            await sb
+              .from('liq_liquidacion_deducciones')
+              .insert({
+                liquidacion_id: liquidacionId,
+                tipo: 'retencion_1_porciento',
+                monto: retencion1Porciento,
+                descripcion: 'Retención 1% (automática)',
+              })
           }
         }
       }
