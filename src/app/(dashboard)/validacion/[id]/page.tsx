@@ -126,10 +126,11 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         quincenaId: quincena.id,
         fechaInicio: quincena.fecha_inicio,
         fechaFin: quincena.fecha_fin,
+        escenarioId: escenario?.id, // Para obtener costos de planificación
       },
       {
         onSuccess: (viajesCreados) => {
-          toast.success(`${viajesCreados.length} viajes generados`)
+          toast.success(`${viajesCreados.length} viajes generados con costos asignados`)
           refetchViajes()
         },
         onError: (error) => {
