@@ -34,16 +34,21 @@ import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 import { agruparPorContratista } from '@/lib/utils/generar-comprobante'
 import {
   generarFilasPayana,
-  generarCSVPayana,
-  generarCSVSimplificado,
+  generarCSV,
   descargarCSV,
   calcularTotalesPayana,
+  CAMPOS_POR_MEDIO,
+  NOMBRES_MEDIOS,
   type FilaPayana,
-} from '@/lib/utils/exportar-payana'
+  type MedioPago,
+} from '@/lib/utils/exportar-pagos'
 import type { LiqQuincena } from '@/types'
 
+// Lista de medios de pago disponibles
+const MEDIOS_DISPONIBLES: MedioPago[] = ['payana']
+
 // Wrapper con Suspense para useSearchParams
-export default function ExportarPayanaPage() {
+export default function ExportarPagosPage() {
   return (
     <Suspense fallback={
       <div className="container py-6 space-y-6">
@@ -51,17 +56,18 @@ export default function ExportarPayanaPage() {
         <Skeleton className="h-64" />
       </div>
     }>
-      <ExportarPayanaContent />
+      <ExportarPagosContent />
     </Suspense>
   )
 }
 
-function ExportarPayanaContent() {
+function ExportarPagosContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const quincenaParam = searchParams.get('quincena')
 
   const [selectedQuincenaId, setSelectedQuincenaId] = useState<string>(quincenaParam || '')
+  const [medioPago, setMedioPago] = useState<MedioPago>('payana')
 
   const { data: quincenasLiquidadas, isLoading: loadingQuincenas } = useQuincenasPorEstado('liquidado')
   const { data: quincena } = useQuincena(selectedQuincenaId || undefined)
@@ -80,20 +86,12 @@ function ExportarPayanaContent() {
   const filasPayana = quincena ? generarFilasPayana(consolidados, quincena) : []
   const totales = calcularTotalesPayana(filasPayana)
 
-  const handleExportarCompleto = () => {
+  const handleDescargar = () => {
     if (!quincena || filasPayana.length === 0) return
-    const csv = generarCSVPayana(filasPayana)
-    const nombreArchivo = `payana-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.csv`
+    const csv = generarCSV(medioPago, filasPayana)
+    const nombreArchivo = `${medioPago}-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.csv`
     descargarCSV(csv, nombreArchivo)
-    toast.success('Archivo exportado')
-  }
-
-  const handleExportarSimplificado = () => {
-    if (!quincena || filasPayana.length === 0) return
-    const csv = generarCSVSimplificado(filasPayana)
-    const nombreArchivo = `pagos-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.csv`
-    descargarCSV(csv, nombreArchivo)
-    toast.success('Archivo exportado')
+    toast.success(`Archivo ${NOMBRES_MEDIOS[medioPago]} exportado`)
   }
 
   if (loadingQuincenas) {
@@ -112,7 +110,7 @@ function ExportarPayanaContent() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Exportar para Payana</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Exportar Pagos</h1>
           <p className="text-muted-foreground">
             Genera el archivo de pagos consolidados por contratista
           </p>
@@ -160,7 +158,7 @@ function ExportarPayanaContent() {
         </CardContent>
       </Card>
 
-      {/* Vista previa y exportación */}
+      {/* Vista previa y exportacion */}
       {selectedQuincenaId && quincena && (
         <>
           {/* Resumen */}
@@ -197,14 +195,25 @@ function ExportarPayanaContent() {
                   Datos que se incluiran en el archivo
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleExportarSimplificado}>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Medio de pago:</span>
+                  <Select value={medioPago} onValueChange={(v) => setMedioPago(v as MedioPago)}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MEDIOS_DISPONIBLES.map((medio) => (
+                        <SelectItem key={medio} value={medio}>
+                          {NOMBRES_MEDIOS[medio]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleDescargar} disabled={filasPayana.length === 0}>
                   <Download className="mr-2 h-4 w-4" />
-                  CSV Simple
-                </Button>
-                <Button onClick={handleExportarCompleto}>
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  CSV Completo
+                  Descargar
                 </Button>
               </div>
             </CardHeader>
@@ -220,13 +229,17 @@ function ExportarPayanaContent() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Documento</TableHead>
+                        <TableHead>Identificacion</TableHead>
                         <TableHead>Nombre</TableHead>
+                        <TableHead>Comprobante</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead>Concepto</TableHead>
+                        <TableHead>Fecha Emision</TableHead>
                         <TableHead>Banco</TableHead>
                         <TableHead>Tipo Cuenta</TableHead>
-                        <TableHead>Numero Cuenta</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
-                        <TableHead>Descripcion</TableHead>
+                        <TableHead>Num. Cuenta</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>WhatsApp</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -234,18 +247,24 @@ function ExportarPayanaContent() {
                         <TableRow key={index}>
                           <TableCell>
                             <Badge variant="outline">
-                              {fila.tipoDocumento} {fila.numeroDocumento}
+                              {fila.tipoIdentificacion} {fila.numeroIdentificacion}
                             </Badge>
                           </TableCell>
                           <TableCell className="font-medium">{fila.nombre}</TableCell>
-                          <TableCell>{fila.banco || '-'}</TableCell>
-                          <TableCell>{fila.tipoCuenta || '-'}</TableCell>
-                          <TableCell className="font-mono">{fila.numeroCuenta || '-'}</TableCell>
+                          <TableCell className="font-mono text-xs">{fila.numeroComprobante}</TableCell>
                           <TableCell className="text-right font-mono font-bold">
                             {formatCOP(fila.monto)}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {fila.descripcion}
+                          <TableCell className="text-sm">{fila.concepto}</TableCell>
+                          <TableCell className="text-sm">{fila.fechaEmision}</TableCell>
+                          <TableCell>{fila.nombreBanco || '-'}</TableCell>
+                          <TableCell>{fila.tipoCuentaBancaria || '-'}</TableCell>
+                          <TableCell className="font-mono">{fila.numeroCuentaBancaria || '-'}</TableCell>
+                          <TableCell className="text-sm">{fila.correoElectronico || '-'}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {fila.prefijoWhatsApp && fila.numeroWhatsApp
+                              ? `+${fila.prefijoWhatsApp} ${fila.numeroWhatsApp}`
+                              : '-'}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -256,39 +275,22 @@ function ExportarPayanaContent() {
             </CardContent>
           </Card>
 
-          {/* Formato de exportación */}
+          {/* Formato de exportacion */}
           <Card>
             <CardHeader>
-              <CardTitle>Formato de Exportacion</CardTitle>
+              <CardTitle>Formato de Exportacion - {NOMBRES_MEDIOS[medioPago]}</CardTitle>
               <CardDescription>
-                Campos incluidos en cada version
+                Campos incluidos en el archivo CSV (15 columnas)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-3">
-                  <h4 className="font-medium">CSV Completo</h4>
-                  <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                    <li>Tipo de documento</li>
-                    <li>Numero de documento</li>
-                    <li>Nombre del contratista</li>
-                    <li>Banco</li>
-                    <li>Tipo de cuenta</li>
-                    <li>Numero de cuenta</li>
-                    <li>Monto</li>
-                    <li>Descripcion</li>
-                    <li>Email</li>
-                  </ul>
-                </div>
-                <div className="space-y-3">
-                  <h4 className="font-medium">CSV Simple</h4>
-                  <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                    <li>Documento (tipo + numero)</li>
-                    <li>Nombre</li>
-                    <li>Cuenta (banco + tipo + numero)</li>
-                    <li>Monto</li>
-                  </ul>
-                </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                {CAMPOS_POR_MEDIO[medioPago].map((campo, index) => (
+                  <div key={index} className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground w-6">{index + 1}.</span>
+                    <span>{campo}</span>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

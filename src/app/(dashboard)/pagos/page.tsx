@@ -125,7 +125,7 @@ export default function PagosPage() {
         <Link href="/pagos/exportar">
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" />
-            Exportar para Payana
+            Exportar Pagos
           </Button>
         </Link>
       </div>
