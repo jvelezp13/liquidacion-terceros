@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, Pencil, Trash2, Power, PowerOff } from 'lucide-react'
-import type { LiqContratista } from '@/types/database.types'
+import type { LiqContratista } from '@/types'
 import { tipoDocumentoOptions } from '@/lib/validations/contratista'
 
 interface ContratistasTableProps {

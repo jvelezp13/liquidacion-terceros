@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, Pencil, Trash2, Power, PowerOff, User, Truck, Route } from 'lucide-react'
-import type { LiqVehiculoTerceroConDetalles } from '@/types/database.types'
+import type { LiqVehiculoTerceroConDetalles } from '@/types'
 
 interface VehiculosTercerosTableProps {
   vehiculos: LiqVehiculoTerceroConDetalles[]

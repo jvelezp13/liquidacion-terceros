@@ -1,5 +1,5 @@
 import type { ConsolidadoContratista } from './generar-comprobante'
-import type { LiqQuincena } from '@/types/database.types'
+import type { LiqQuincena } from '@/types'
 import { formatearQuincena } from '@/lib/hooks/use-quincenas'
 
 // Formato de fila para exportación Payana

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useActiveTenant } from './use-tenant'
-import type { LiqContratista } from '@/types/database.types'
+import type { LiqContratista } from '@/types'
 
 // Tipo para crear un contratista
 export interface CreateContratistaInput {

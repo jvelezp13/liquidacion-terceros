@@ -48,7 +48,7 @@ import {
   VistaPorVehiculo,
 } from '@/components/validacion'
 import { ViajeManualForm } from '@/components/validacion/viaje-manual-form'
-import type { EstadoViaje } from '@/types/database.types'
+import type { EstadoViaje } from '@/types'
 
 interface PageProps {
   params: Promise<{ id: string }>

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import type { LiqVehiculoRutaProgramada, RutaLogistica } from '@/types/database.types'
+import type { LiqVehiculoRutaProgramada, RutaLogistica } from '@/types'
 
 // Tipo extendido con detalles de ruta
 export interface RutaProgramadaConDetalles extends LiqVehiculoRutaProgramada {

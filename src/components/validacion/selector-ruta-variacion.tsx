@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import type { RutaLogistica } from '@/types/database.types'
+import type { RutaLogistica } from '@/types'
 
 interface SelectorRutaVariacionProps {
   rutas: RutaLogistica[]

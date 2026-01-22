@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
-import type { LiqQuincena } from '@/types/database.types'
+import type { LiqQuincena } from '@/types'
 
 // Tipo para ejecución de rubros
 interface EjecucionRubro {

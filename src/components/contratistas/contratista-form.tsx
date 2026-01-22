@@ -26,7 +26,7 @@ import {
   tipoDocumentoOptions,
   tipoCuentaOptions,
 } from '@/lib/validations/contratista'
-import type { LiqContratista } from '@/types/database.types'
+import type { LiqContratista } from '@/types'
 
 interface ContratistaFormProps {
   contratista?: LiqContratista

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Truck, CheckCircle, XCircle, Route, Clock } from 'lucide-react'
 import { TarjetaViaje } from './tarjeta-viaje'
 import type { ViajeEjecutadoConDetalles } from '@/lib/hooks/use-viajes-ejecutados'
-import type { RutaLogistica, EstadoViaje } from '@/types/database.types'
+import type { RutaLogistica, EstadoViaje } from '@/types'
 
 interface VehiculoStats {
   id: string

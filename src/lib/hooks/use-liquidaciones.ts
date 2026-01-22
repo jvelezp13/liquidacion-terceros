@@ -7,7 +7,7 @@ import type {
   LiqLiquidacionDeduccion,
   LiqVehiculoTerceroConDetalles,
   EstadoLiquidacion,
-} from '@/types/database.types'
+} from '@/types'
 
 // Tipo extendido con deducciones
 export interface LiquidacionConDeducciones extends LiqLiquidacion {

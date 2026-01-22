@@ -31,7 +31,7 @@ import {
   useToggleContratistaActivo,
 } from '@/lib/hooks/use-contratistas'
 import { useActiveTenant, useCanEdit } from '@/lib/hooks/use-tenant'
-import type { LiqContratista } from '@/types/database.types'
+import type { LiqContratista } from '@/types'
 import type { ContratistaFormData } from '@/lib/validations/contratista'
 
 export default function ContratistasPage() {

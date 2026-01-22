@@ -1,5 +1,5 @@
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
-import type { LiqQuincena, LiqContratista } from '@/types/database.types'
+import type { LiqQuincena, LiqContratista } from '@/types'
 import { formatCOP } from './calcular-liquidacion'
 import { formatearQuincena } from '@/lib/hooks/use-quincenas'
 
@@ -202,8 +202,8 @@ export function generarComprobanteHTML(
           <strong>Flete base</strong><br>
           <span style="color: #666; font-size: 11px;">
             ${liquidacion.viajes_ejecutados} viajes ejecutados
-            ${liquidacion.viajes_variacion > 0 ? ` + ${liquidacion.viajes_variacion} otra ruta` : ''}
-            ${liquidacion.viajes_no_ejecutados > 0 ? ` - ${liquidacion.viajes_no_ejecutados} no ejecutados` : ''}
+            ${(liquidacion.viajes_variacion ?? 0) > 0 ? ` + ${liquidacion.viajes_variacion} otra ruta` : ''}
+            ${(liquidacion.viajes_no_ejecutados ?? 0) > 0 ? ` - ${liquidacion.viajes_no_ejecutados} no ejecutados` : ''}
           </span>
         </td>
         <td class="number">${formatCOP(liquidacion.flete_base)}</td>
@@ -521,7 +521,7 @@ export function generarResumenConsolidadoHTML(
         ${c.liquidaciones.map((liq) => `
         <tr>
           <td>${liq.vehiculo_tercero?.placa || 'Sin placa'}</td>
-          <td style="text-align: center">${liq.viajes_ejecutados}${liq.viajes_variacion > 0 ? `+${liq.viajes_variacion}v` : ''}</td>
+          <td style="text-align: center">${liq.viajes_ejecutados}${(liq.viajes_variacion ?? 0) > 0 ? `+${liq.viajes_variacion}v` : ''}</td>
           <td class="number">${formatCOP(liq.flete_base)}</td>
           <td class="number">${formatCOP(liq.total_combustible + liq.total_peajes + liq.total_fletes_adicionales + liq.total_pernocta + liq.ajuste_monto)}</td>
           <td class="number" style="color: #c00">${liq.total_deducciones > 0 ? `-${formatCOP(liq.total_deducciones)}` : '-'}</td>

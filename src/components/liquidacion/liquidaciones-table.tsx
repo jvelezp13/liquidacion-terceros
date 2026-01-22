@@ -117,10 +117,10 @@ export function LiquidacionesTable({
                 <TableCell className="text-right">
                   <div className="text-sm">
                     <span className="text-green-600">{liq.viajes_ejecutados}</span>
-                    {liq.viajes_variacion > 0 && (
+                    {(liq.viajes_variacion ?? 0) > 0 && (
                       <span className="text-blue-600"> + {liq.viajes_variacion}v</span>
                     )}
-                    {liq.viajes_no_ejecutados > 0 && (
+                    {(liq.viajes_no_ejecutados ?? 0) > 0 && (
                       <span className="text-red-600"> - {liq.viajes_no_ejecutados}</span>
                     )}
                   </div>

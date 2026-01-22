@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useActiveTenant } from './use-tenant'
-import type { Escenario } from '@/types/database.types'
+import type { Escenario } from '@/types'
 
 /**
  * Hook para obtener el escenario de PRODUCCION del tenant

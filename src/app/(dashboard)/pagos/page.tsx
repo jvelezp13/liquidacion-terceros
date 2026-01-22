@@ -41,7 +41,7 @@ import {
 } from '@/lib/hooks/use-historial-pagos'
 import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 import { agruparPorContratista, type ConsolidadoContratista } from '@/lib/utils/generar-comprobante'
-import type { LiqQuincena } from '@/types/database.types'
+import type { LiqQuincena } from '@/types'
 
 export default function PagosPage() {
   const router = useRouter()

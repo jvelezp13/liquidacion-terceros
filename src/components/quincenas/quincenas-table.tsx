@@ -27,7 +27,7 @@ import {
   DollarSign,
   ArrowRight,
 } from 'lucide-react'
-import type { LiqQuincena } from '@/types/database.types'
+import type { LiqQuincena } from '@/types'
 import { formatearQuincena, getNombreMes } from '@/lib/hooks/use-quincenas'
 import { getEstadoQuincenaLabel } from '@/lib/validations/quincena'
 

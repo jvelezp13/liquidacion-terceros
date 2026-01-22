@@ -40,7 +40,7 @@ import {
   calcularTotalesPayana,
   type FilaPayana,
 } from '@/lib/utils/exportar-payana'
-import type { LiqQuincena } from '@/types/database.types'
+import type { LiqQuincena } from '@/types'
 
 // Wrapper con Suspense para useSearchParams
 export default function ExportarPayanaPage() {

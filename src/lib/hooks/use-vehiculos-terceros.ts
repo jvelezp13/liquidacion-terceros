@@ -9,7 +9,7 @@ import type {
   Vehiculo,
   VehiculoCostos,
   LiqContratista
-} from '@/types/database.types'
+} from '@/types'
 
 // Tipo para crear vínculo vehículo-contratista
 export interface CreateVehiculoTerceroInput {

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useEscenarioActivo } from './use-escenario-activo'
-import type { LiqQuincena, EstadoQuincena } from '@/types/database.types'
+import type { LiqQuincena, EstadoQuincena } from '@/types'
 
 // Tipo para crear una quincena
 export interface CreateQuincenaInput {

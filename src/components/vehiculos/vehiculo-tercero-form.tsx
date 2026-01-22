@@ -28,7 +28,7 @@ import {
   vehiculoTerceroSchema,
   type VehiculoTerceroFormData,
 } from '@/lib/validations/vehiculo-tercero'
-import type { LiqVehiculoTerceroConDetalles, Vehiculo, VehiculoCostos, LiqContratista } from '@/types/database.types'
+import type { LiqVehiculoTerceroConDetalles, Vehiculo, VehiculoCostos, LiqContratista } from '@/types'
 
 // Tipo para vehículos sin vincular
 type VehiculoSinVincular = Vehiculo & { costos: VehiculoCostos | null }
@@ -68,7 +68,7 @@ export function VehiculoTerceroForm({
       conductor_telefono: vehiculoTercero?.conductor_telefono || '',
       conductor_documento: vehiculoTercero?.conductor_documento || '',
       notas: vehiculoTercero?.notas || '',
-      modalidad_costo: vehiculoTercero?.modalidad_costo || undefined,
+      modalidad_costo: (vehiculoTercero?.modalidad_costo as 'por_viaje' | 'flete_fijo') || undefined,
       flete_mensual: vehiculoTercero?.flete_mensual || undefined,
       costo_por_viaje: vehiculoTercero?.costo_por_viaje || undefined,
     },

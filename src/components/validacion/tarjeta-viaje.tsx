@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { SelectorRutaVariacion } from './selector-ruta-variacion'
 import type { ViajeEjecutadoConDetalles } from '@/lib/hooks/use-viajes-ejecutados'
-import type { RutaLogistica, EstadoViaje } from '@/types/database.types'
+import type { RutaLogistica, EstadoViaje } from '@/types'
 
 interface TarjetaViajeProps {
   viaje: ViajeEjecutadoConDetalles

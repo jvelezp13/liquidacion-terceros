@@ -1,7 +1,7 @@
 import type {
   LiqViajeEjecutado,
   LiqVehiculoTerceroConDetalles,
-} from '@/types/database.types'
+} from '@/types'
 
 // Resultado del cálculo de liquidación
 export interface ResultadoCalculoLiquidacion {
@@ -38,17 +38,17 @@ export function calcularLiquidacionVehiculo(
   for (const viaje of viajes) {
     if (viaje.estado === 'ejecutado') {
       viajesEjecutados++
-      totalCombustible += viaje.costo_combustible
-      totalPeajes += viaje.costo_peajes
-      totalFletesAdicionales += viaje.costo_flete_adicional
-      totalPernocta += viaje.costo_pernocta
+      totalCombustible += viaje.costo_combustible ?? 0
+      totalPeajes += viaje.costo_peajes ?? 0
+      totalFletesAdicionales += viaje.costo_flete_adicional ?? 0
+      totalPernocta += viaje.costo_pernocta ?? 0
     } else if (viaje.estado === 'variacion') {
       // Variación paga 100% igual que ejecutado
       viajesVariacion++
-      totalCombustible += viaje.costo_combustible
-      totalPeajes += viaje.costo_peajes
-      totalFletesAdicionales += viaje.costo_flete_adicional
-      totalPernocta += viaje.costo_pernocta
+      totalCombustible += viaje.costo_combustible ?? 0
+      totalPeajes += viaje.costo_peajes ?? 0
+      totalFletesAdicionales += viaje.costo_flete_adicional ?? 0
+      totalPernocta += viaje.costo_pernocta ?? 0
     } else if (viaje.estado === 'no_ejecutado') {
       viajesNoEjecutados++
       // No se suman costos para no ejecutados

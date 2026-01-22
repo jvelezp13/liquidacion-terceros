@@ -7,7 +7,7 @@ import type {
   LiqVehiculoTercero,
   RutaLogistica,
   EstadoViaje,
-} from '@/types/database.types'
+} from '@/types'
 
 // Tipo extendido con detalles
 export interface ViajeEjecutadoConDetalles extends LiqViajeEjecutado {

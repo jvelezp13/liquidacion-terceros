@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useEscenarioActivo } from './use-escenario-activo'
-import type { RutaLogistica, RutaMunicipio, Municipio } from '@/types/database.types'
+import type { RutaLogistica, RutaMunicipio, Municipio } from '@/types'
 
 // Tipo extendido con municipios
 export interface RutaLogisticaConMunicipios extends RutaLogistica {

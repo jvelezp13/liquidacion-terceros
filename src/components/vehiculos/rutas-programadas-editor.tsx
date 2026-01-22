@@ -20,7 +20,7 @@ import {
   type RutaProgramadaConDetalles,
 } from '@/lib/hooks/use-rutas-programadas'
 import { useRutasLogisticasVehiculo, type RutaLogisticaConMunicipios } from '@/lib/hooks/use-rutas-logisticas'
-import type { LiqVehiculoTerceroConDetalles } from '@/types/database.types'
+import type { LiqVehiculoTerceroConDetalles } from '@/types'
 
 interface RutasProgramadasEditorProps {
   vehiculoTercero: LiqVehiculoTerceroConDetalles
@@ -295,13 +295,8 @@ export function RutasProgramadasEditor({ vehiculoTercero }: RutasProgramadasEdit
 
                   {/* Info de la ruta */}
                   <div className="hidden md:flex items-center gap-2">
-                    {rp.ruta?.requiere_pernocta && (
-                      <Badge variant="outline" className="text-xs">
-                        Pernocta
-                      </Badge>
-                    )}
                     <Badge variant="secondary" className="text-xs">
-                      {rp.ruta?.viajes_por_periodo || 1} viaje(s)/{rp.ruta?.frecuencia || 'mes'}
+                      {rp.ruta?.nombre || 'Sin ruta'}
                     </Badge>
                   </div>
 

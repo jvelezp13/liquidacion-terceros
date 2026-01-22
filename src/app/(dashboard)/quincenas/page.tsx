@@ -33,7 +33,7 @@ import {
 } from '@/lib/hooks/use-quincenas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
 import { useCanEdit } from '@/lib/hooks/use-tenant'
-import type { LiqQuincena, EstadoQuincena } from '@/types/database.types'
+import type { LiqQuincena, EstadoQuincena } from '@/types'
 import type { QuincenaFormData } from '@/lib/validations/quincena'
 
 export default function QuincenasPage() {

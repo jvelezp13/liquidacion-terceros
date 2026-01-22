@@ -187,8 +187,8 @@ export function LiquidacionDetalle({
           <CardTitle>Desglose de Liquidacion</CardTitle>
           <CardDescription>
             {liquidacion.viajes_ejecutados} viajes ejecutados
-            {liquidacion.viajes_variacion > 0 && ` + ${liquidacion.viajes_variacion} otra ruta`}
-            {liquidacion.viajes_no_ejecutados > 0 && ` - ${liquidacion.viajes_no_ejecutados} no ejecutados`}
+            {(liquidacion.viajes_variacion ?? 0) > 0 && ` + ${liquidacion.viajes_variacion} otra ruta`}
+            {(liquidacion.viajes_no_ejecutados ?? 0) > 0 && ` - ${liquidacion.viajes_no_ejecutados} no ejecutados`}
           </CardDescription>
         </CardHeader>
         <CardContent>

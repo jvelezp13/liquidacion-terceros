@@ -33,7 +33,7 @@ import {
 import { useContratistasActivos } from '@/lib/hooks/use-contratistas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
 import { useCanEdit } from '@/lib/hooks/use-tenant'
-import type { LiqVehiculoTerceroConDetalles } from '@/types/database.types'
+import type { LiqVehiculoTerceroConDetalles } from '@/types'
 import type { VehiculoTerceroFormData } from '@/lib/validations/vehiculo-tercero'
 
 export default function VehiculosPage() {

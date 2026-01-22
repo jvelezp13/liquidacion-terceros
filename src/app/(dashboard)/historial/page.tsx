@@ -26,7 +26,7 @@ import { useQuincenasPorEstado, useQuincenas, formatearQuincena } from '@/lib/ho
 import { useHistorialPagos, type HistorialPagoConQuincena } from '@/lib/hooks/use-historial-pagos'
 import { useContratistas } from '@/lib/hooks/use-contratistas'
 import { formatCOP } from '@/lib/utils/calcular-liquidacion'
-import type { LiqQuincena, LiqContratista } from '@/types/database.types'
+import type { LiqQuincena, LiqContratista } from '@/types'
 
 export default function HistorialPage() {
   const router = useRouter()

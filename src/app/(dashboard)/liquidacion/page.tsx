@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Calculator, ChevronRight, DollarSign } from 'lucide-react'
 import { useQuincenas, formatearQuincena } from '@/lib/hooks/use-quincenas'
-import type { LiqQuincena } from '@/types/database.types'
+import type { LiqQuincena } from '@/types'
 
 // Variante de badge por estado
 const getBadgeVariant = (estado: string) => {

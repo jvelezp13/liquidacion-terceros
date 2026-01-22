@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useEscenarioActivo } from './use-escenario-activo'
-import type { LiqHistorialPago, LiqQuincena } from '@/types/database.types'
+import type { LiqHistorialPago, LiqQuincena } from '@/types'
 
 // Tipo extendido con quincena
 export interface HistorialPagoConQuincena extends LiqHistorialPago {
