@@ -202,51 +202,12 @@ export default function LiquidacionDetallePage() {
         </div>
       </div>
 
-      {/* Resumen */}
-      {liquidaciones && liquidaciones.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Liquidaciones</CardDescription>
-              <CardTitle className="text-2xl">{liquidaciones.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Subtotal</CardDescription>
-              <CardTitle className="text-2xl font-mono">{formatCOP(totales.subtotal)}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Deducciones</CardDescription>
-              <CardTitle className="text-2xl font-mono text-red-600">
-                -{formatCOP(totales.deducciones)}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-primary">
-            <CardHeader className="pb-2">
-              <CardDescription>Total a Pagar</CardDescription>
-              <CardTitle className="text-2xl font-mono">{formatCOP(totales.aPagar)}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-      )}
-
-      {/* Instrucciones o warnings */}
+      {/* Instrucciones */}
       {esEditable && algunaBorrador && liquidaciones && liquidaciones.length > 0 && (
-        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
-              <Calculator className="h-5 w-5" />
-              <span>
-                Hay liquidaciones en borrador. Expande cada fila para revisar el desglose,
-                agregar deducciones y aprobar.
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-400">
+          <Calculator className="h-4 w-4 flex-shrink-0" />
+          <span>Liquidaciones en borrador. Expande cada fila para revisar y aprobar.</span>
+        </div>
       )}
 
       {/* Tabla de liquidaciones */}
