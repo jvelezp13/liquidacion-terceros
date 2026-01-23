@@ -67,9 +67,11 @@ export function useLiquidacionesQuincena(quincenaId: string | undefined) {
           deducciones:liq_liquidacion_deducciones(*),
           vehiculo_tercero:liq_vehiculos_terceros!inner(
             *,
-            vehiculo:vehiculos(*),
-            contratista:liq_contratistas(*),
-            vehiculo_costos:vehiculos_costos(*)
+            vehiculo:vehiculos(
+              *,
+              vehiculo_costos:vehiculos_costos(*)
+            ),
+            contratista:liq_contratistas(*)
           )
         `)
         .eq('quincena_id', quincenaId)
@@ -87,7 +89,8 @@ export function useLiquidacionesQuincena(quincenaId: string | undefined) {
               ...liq.vehiculo_tercero,
               vehiculo: liq.vehiculo_tercero.vehiculo,
               contratista: liq.vehiculo_tercero.contratista,
-              vehiculo_costos: liq.vehiculo_tercero.vehiculo_costos || undefined,
+              // vehiculo_costos ahora está dentro de vehiculo
+              vehiculo_costos: liq.vehiculo_tercero.vehiculo?.vehiculo_costos || undefined,
             }
           : undefined,
       }))
