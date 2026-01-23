@@ -47,7 +47,7 @@ export const tiposDeduccion = [
   { value: 'otro', label: 'Otro' },
 ]
 
-// Hook para obtener liquidaciones de una quincena
+// Hook para obtener liquidaciones de una quincena (optimizado con joins)
 export function useLiquidacionesQuincena(quincenaId: string | undefined) {
   const supabase = createClient()
 
@@ -59,73 +59,38 @@ export function useLiquidacionesQuincena(quincenaId: string | undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener liquidaciones
+      // Obtener liquidaciones con joins - 1 query en lugar de N+1
       const { data: liquidaciones, error } = await sb
         .from('liq_liquidaciones')
-        .select('*')
+        .select(`
+          *,
+          deducciones:liq_liquidacion_deducciones(*),
+          vehiculo_tercero:liq_vehiculos_terceros!inner(
+            *,
+            vehiculo:vehiculos(*),
+            contratista:liq_contratistas(*),
+            vehiculo_costos:vehiculos_costos(*)
+          )
+        `)
         .eq('quincena_id', quincenaId)
         .order('created_at')
 
       if (error) throw error
       if (!liquidaciones || liquidaciones.length === 0) return []
 
-      // Obtener deducciones y detalles de cada liquidación
-      const result = await Promise.all(
-        (liquidaciones as LiqLiquidacion[]).map(async (liq) => {
-          // Obtener deducciones
-          const { data: deducciones } = await sb
-            .from('liq_liquidacion_deducciones')
-            .select('*')
-            .eq('liquidacion_id', liq.id)
-            .order('created_at')
-
-          // Obtener vehículo tercero con detalles
-          const { data: vehiculoTercero } = await sb
-            .from('liq_vehiculos_terceros')
-            .select('*')
-            .eq('id', liq.vehiculo_tercero_id)
-            .single()
-
-          let vehiculoConDetalles: LiqVehiculoTerceroConDetalles | undefined
-
-          if (vehiculoTercero) {
-            const { data: vehiculo } = await sb
-              .from('vehiculos')
-              .select('*')
-              .eq('id', vehiculoTercero.vehiculo_id)
-              .single()
-
-            const { data: contratista } = await sb
-              .from('liq_contratistas')
-              .select('*')
-              .eq('id', vehiculoTercero.contratista_id)
-              .single()
-
-            const { data: costos } = await sb
-              .from('vehiculos_costos')
-              .select('*')
-              .eq('vehiculo_id', vehiculoTercero.vehiculo_id)
-              .single()
-
-            if (vehiculo && contratista) {
-              vehiculoConDetalles = {
-                ...vehiculoTercero,
-                vehiculo,
-                contratista,
-                vehiculo_costos: costos || undefined,
-              }
+      // Transformar datos al formato esperado
+      return liquidaciones.map((liq: any) => ({
+        ...liq,
+        deducciones: (liq.deducciones || []) as LiqLiquidacionDeduccion[],
+        vehiculo_tercero: liq.vehiculo_tercero
+          ? {
+              ...liq.vehiculo_tercero,
+              vehiculo: liq.vehiculo_tercero.vehiculo,
+              contratista: liq.vehiculo_tercero.contratista,
+              vehiculo_costos: liq.vehiculo_tercero.vehiculo_costos || undefined,
             }
-          }
-
-          return {
-            ...liq,
-            deducciones: (deducciones || []) as LiqLiquidacionDeduccion[],
-            vehiculo_tercero: vehiculoConDetalles,
-          }
-        })
-      )
-
-      return result
+          : undefined,
+      }))
     },
     enabled: !!quincenaId,
   })
