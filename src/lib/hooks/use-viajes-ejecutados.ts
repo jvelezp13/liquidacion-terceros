@@ -8,6 +8,12 @@ import type {
   RutaLogistica,
   EstadoViaje,
 } from '@/types'
+import {
+  calcularCostosViaje,
+  convertirDiaJSaISO,
+  type CostoDiaPlanificacion,
+  type DatosRutaPlanificacion,
+} from '@/lib/utils/generar-viajes'
 
 // Tipo extendido con detalles
 export interface ViajeEjecutadoConDetalles extends LiqViajeEjecutado {
@@ -296,6 +302,7 @@ export function useUpdateEstadoViaje() {
 }
 
 // Hook para actualizar estado de viaje con ruta de variación
+// Recalcula los costos basándose en la ruta de variación
 export function useUpdateEstadoViajeConVariacion() {
   const supabase = createClient()
   const queryClient = useQueryClient()
@@ -313,11 +320,75 @@ export function useUpdateEstadoViajeConVariacion() {
       quincenaId: string
     }): Promise<LiqViajeEjecutado> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const sb = supabase as any
+
+      // Obtener el viaje actual para saber la fecha
+      const { data: viaje, error: viajeError } = await sb
+        .from('liq_viajes_ejecutados')
+        .select('fecha')
+        .eq('id', id)
+        .single()
+
+      if (viajeError) throw viajeError
+
+      // Obtener el escenario_id de la quincena
+      const { data: quincena, error: quincenaError } = await sb
+        .from('liq_quincenas')
+        .select('escenario_id')
+        .eq('id', quincenaId)
+        .single()
+
+      if (quincenaError) throw quincenaError
+
+      // Calcular el día de la semana del viaje
+      const fechaViaje = new Date(viaje.fecha + 'T00:00:00')
+      const diaISO = convertirDiaJSaISO(fechaViaje.getDay())
+
+      // Obtener costos de la ruta de variación desde planificacion_lejanias
+      let costos = {
+        costoCombustible: 0,
+        costoPeajes: 0,
+        costoAdicionales: 0,
+        costoPernocta: 0,
+        requierePernocta: false,
+        nochesPernocta: 0,
+        kmRecorridos: 0,
+        costoTotal: 0,
+      }
+
+      if (rutaVariacionId && quincena.escenario_id) {
+        const { data: planificacion } = await sb
+          .from('planificacion_lejanias')
+          .select('costos_por_dia, peajes_ciclo, frecuencia')
+          .eq('escenario_id', quincena.escenario_id)
+          .eq('ruta_id', rutaVariacionId)
+          .eq('tipo', 'logistico')
+          .single()
+
+        if (planificacion?.costos_por_dia && Array.isArray(planificacion.costos_por_dia)) {
+          const datosRuta: DatosRutaPlanificacion = {
+            costos: planificacion.costos_por_dia as CostoDiaPlanificacion[],
+            peajesCiclo: planificacion.peajes_ciclo || 0,
+            frecuencia: planificacion.frecuencia || 'semanal',
+          }
+          costos = calcularCostosViaje(datosRuta, diaISO)
+        }
+      }
+
+      // Actualizar el viaje con estado, ruta de variación y costos recalculados
+      const { data, error } = await sb
         .from('liq_viajes_ejecutados')
         .update({
           estado,
           ruta_variacion_id: rutaVariacionId,
+          costo_combustible: costos.costoCombustible,
+          costo_peajes: costos.costoPeajes,
+          costo_flete_adicional: costos.costoAdicionales,
+          costo_pernocta: costos.costoPernocta,
+          requiere_pernocta: costos.requierePernocta,
+          noches_pernocta: costos.nochesPernocta,
+          km_recorridos: costos.kmRecorridos,
+          costo_total: costos.costoTotal,
         })
         .eq('id', id)
         .select()
@@ -327,7 +398,7 @@ export function useUpdateEstadoViajeConVariacion() {
       return data as LiqViajeEjecutado
     },
     onSuccess: (data, variables) => {
-      // Actualizar cache inmediatamente para feedback visual instantáneo
+      // Actualizar cache con todos los campos actualizados
       queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
         ['viajes-ejecutados', variables.quincenaId],
         (oldData) => {
@@ -338,11 +409,22 @@ export function useUpdateEstadoViajeConVariacion() {
                   ...viaje,
                   estado: data.estado,
                   ruta_variacion_id: data.ruta_variacion_id,
+                  costo_combustible: data.costo_combustible,
+                  costo_peajes: data.costo_peajes,
+                  costo_flete_adicional: data.costo_flete_adicional,
+                  costo_pernocta: data.costo_pernocta,
+                  requiere_pernocta: data.requiere_pernocta,
+                  noches_pernocta: data.noches_pernocta,
+                  km_recorridos: data.km_recorridos,
+                  costo_total: data.costo_total,
                 }
               : viaje
           )
         }
       )
+      // Invalidar también los datos de liquidación para que se recalculen
+      queryClient.invalidateQueries({ queryKey: ['viajes-por-liquidacion'] })
+      queryClient.invalidateQueries({ queryKey: ['viajes-quincena-completa', variables.quincenaId] })
     },
   })
 }
