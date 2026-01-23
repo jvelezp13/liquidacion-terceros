@@ -3,6 +3,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { LiqLiquidacion } from '@/types'
+import {
+  calcularTotalesViajes,
+  calcularDeduccion1Porciento,
+  determinarModalidadPago,
+} from '@/lib/utils/calcular-liquidacion'
 
 // Hook para generar liquidaciones automáticamente desde viajes
 export function useGenerarLiquidaciones() {
@@ -51,36 +56,11 @@ export function useGenerarLiquidaciones() {
           costos = data
         }
 
-        // Calcular totales
-        let viajesEjecutados = 0
-        let viajesVariacion = 0
-        let viajesNoEjecutados = 0
-        let totalCombustible = 0
-        let totalPeajes = 0
-        let totalFletesAdicionales = 0
-        let totalPernocta = 0
-
-        for (const viaje of viajes) {
-          if (viaje.estado === 'ejecutado') {
-            viajesEjecutados++
-            totalCombustible += viaje.costo_combustible || 0
-            totalPeajes += viaje.costo_peajes || 0
-            totalFletesAdicionales += viaje.costo_flete_adicional || 0
-            totalPernocta += viaje.costo_pernocta || 0
-          } else if (viaje.estado === 'variacion') {
-            // Variación paga 100% igual que ejecutado
-            viajesVariacion++
-            totalCombustible += viaje.costo_combustible || 0
-            totalPeajes += viaje.costo_peajes || 0
-            totalFletesAdicionales += viaje.costo_flete_adicional || 0
-            totalPernocta += viaje.costo_pernocta || 0
-          } else if (viaje.estado === 'no_ejecutado') {
-            viajesNoEjecutados++
-          }
-        }
+        // Calcular totales usando función utils
+        const totales = calcularTotalesViajes(viajes)
 
         // Total de viajes que se pagan
-        const viajesPagados = viajesEjecutados + viajesVariacion
+        const viajesPagados = totales.viajesEjecutados + totales.viajesVariacion
 
         // Calcular flete base
         let fleteBase = 0
@@ -106,13 +86,13 @@ export function useGenerarLiquidaciones() {
 
         const subtotal =
           fleteBase +
-          totalCombustible +
-          totalPeajes +
-          totalFletesAdicionales +
-          totalPernocta
+          totales.totalCombustible +
+          totales.totalPeajes +
+          totales.totalFletesAdicionales +
+          totales.totalPernocta
 
-        // Calcular retención 1% automática
-        const retencion1Porciento = Math.round(subtotal * 0.01)
+        // Calcular retención 1% automática usando función utils
+        const retencion1Porciento = calcularDeduccion1Porciento(subtotal)
         const totalDeducciones = retencion1Porciento
         const totalAPagar = Math.round(subtotal) - totalDeducciones
 
@@ -131,14 +111,14 @@ export function useGenerarLiquidaciones() {
           const { data: updated, error: updateError } = await sb
             .from('liq_liquidaciones')
             .update({
-              viajes_ejecutados: viajesEjecutados,
-              viajes_variacion: viajesVariacion,
-              viajes_no_ejecutados: viajesNoEjecutados,
+              viajes_ejecutados: totales.viajesEjecutados,
+              viajes_variacion: totales.viajesVariacion,
+              viajes_no_ejecutados: totales.viajesNoEjecutados,
               flete_base: Math.round(fleteBase),
-              total_combustible: Math.round(totalCombustible),
-              total_peajes: Math.round(totalPeajes),
-              total_fletes_adicionales: Math.round(totalFletesAdicionales),
-              total_pernocta: Math.round(totalPernocta),
+              total_combustible: Math.round(totales.totalCombustible),
+              total_peajes: Math.round(totales.totalPeajes),
+              total_fletes_adicionales: Math.round(totales.totalFletesAdicionales),
+              total_pernocta: Math.round(totales.totalPernocta),
               subtotal: Math.round(subtotal),
               total_deducciones: totalDeducciones,
               total_a_pagar: totalAPagar,
@@ -158,14 +138,14 @@ export function useGenerarLiquidaciones() {
             .insert({
               quincena_id: quincenaId,
               vehiculo_tercero_id: vehiculo.id,
-              viajes_ejecutados: viajesEjecutados,
-              viajes_variacion: viajesVariacion,
-              viajes_no_ejecutados: viajesNoEjecutados,
+              viajes_ejecutados: totales.viajesEjecutados,
+              viajes_variacion: totales.viajesVariacion,
+              viajes_no_ejecutados: totales.viajesNoEjecutados,
               flete_base: Math.round(fleteBase),
-              total_combustible: Math.round(totalCombustible),
-              total_peajes: Math.round(totalPeajes),
-              total_fletes_adicionales: Math.round(totalFletesAdicionales),
-              total_pernocta: Math.round(totalPernocta),
+              total_combustible: Math.round(totales.totalCombustible),
+              total_peajes: Math.round(totales.totalPeajes),
+              total_fletes_adicionales: Math.round(totales.totalFletesAdicionales),
+              total_pernocta: Math.round(totales.totalPernocta),
               subtotal: Math.round(subtotal),
               total_deducciones: totalDeducciones,
               total_a_pagar: totalAPagar,

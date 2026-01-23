@@ -130,3 +130,88 @@ export function calcularPorcentajeEjecucion(
   // Ejecutados + variación cuentan como 100% cada uno
   return Math.round(((ejecutados + variacion) / total) * 100)
 }
+
+// Resultado de calcular totales de viajes
+export interface TotalesViajes {
+  viajesEjecutados: number
+  viajesVariacion: number
+  viajesNoEjecutados: number
+  totalCombustible: number
+  totalPeajes: number
+  totalFletesAdicionales: number
+  totalPernocta: number
+}
+
+/**
+ * Calcula los totales de viajes agrupados por estado
+ * Extrae solo los datos de los viajes sin lógica de negocio del vehículo
+ */
+export function calcularTotalesViajes(viajes: LiqViajeEjecutado[]): TotalesViajes {
+  let viajesEjecutados = 0
+  let viajesVariacion = 0
+  let viajesNoEjecutados = 0
+  let totalCombustible = 0
+  let totalPeajes = 0
+  let totalFletesAdicionales = 0
+  let totalPernocta = 0
+
+  for (const viaje of viajes) {
+    if (viaje.estado === 'ejecutado') {
+      viajesEjecutados++
+      totalCombustible += viaje.costo_combustible || 0
+      totalPeajes += viaje.costo_peajes || 0
+      totalFletesAdicionales += viaje.costo_flete_adicional || 0
+      totalPernocta += viaje.costo_pernocta || 0
+    } else if (viaje.estado === 'variacion') {
+      viajesVariacion++
+      totalCombustible += viaje.costo_combustible || 0
+      totalPeajes += viaje.costo_peajes || 0
+      totalFletesAdicionales += viaje.costo_flete_adicional || 0
+      totalPernocta += viaje.costo_pernocta || 0
+    } else if (viaje.estado === 'no_ejecutado') {
+      viajesNoEjecutados++
+    }
+  }
+
+  return {
+    viajesEjecutados,
+    viajesVariacion,
+    viajesNoEjecutados,
+    totalCombustible,
+    totalPeajes,
+    totalFletesAdicionales,
+    totalPernocta,
+  }
+}
+
+/**
+ * Calcula la deducción de retención del 1%
+ */
+export function calcularDeduccion1Porciento(subtotal: number): number {
+  return Math.round(subtotal * 0.01)
+}
+
+/**
+ * Determina la modalidad de pago según el tipo de vehículo
+ * @param vehiculo - Vehículo tercero (puede ser esporádico o normal)
+ * @param costos - Costos del vehículo de PlaneacionLogi (solo para vehículos normales)
+ * @returns La modalidad de pago detectada
+ */
+export function determinarModalidadPago(
+  vehiculo: { vehiculo_id?: string | null; modalidad_costo?: string | null },
+  costos?: { modalidad_tercero?: string | null } | null
+): 'por_viaje' | 'flete_fijo' | null {
+  const esEsporadico = !vehiculo.vehiculo_id
+
+  if (esEsporadico) {
+    // Vehículo esporádico: usar modalidad propia
+    if (vehiculo.modalidad_costo === 'por_viaje') return 'por_viaje'
+    if (vehiculo.modalidad_costo === 'flete_fijo') return 'flete_fijo'
+  } else if (costos) {
+    // Vehículo normal: usar modalidad de PlaneacionLogi
+    if (costos.modalidad_tercero === 'por_viaje') return 'por_viaje'
+    if (costos.modalidad_tercero === 'flete_fijo') return 'flete_fijo'
+  }
+
+  return null
+}
