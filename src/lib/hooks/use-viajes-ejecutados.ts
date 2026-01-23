@@ -74,8 +74,8 @@ export function useViajesQuincena(quincenaId: string | undefined) {
             contratista:liq_contratistas(id, nombre),
             vehiculo:vehiculos(*)
           ),
-          ruta_programada:rutas_logisticas(*),
-          ruta_variacion:rutas_logisticas(*)
+          ruta_programada:rutas_logisticas!liq_viajes_ejecutados_ruta_programada_id_fkey(*),
+          ruta_variacion:rutas_logisticas!liq_viajes_ejecutados_ruta_variacion_id_fkey(*)
         `)
         .eq('quincena_id', quincenaId)
         .order('fecha')
@@ -147,8 +147,8 @@ export function useViajesPorFecha(quincenaId: string | undefined, fecha: string 
             contratista:liq_contratistas(id, nombre),
             vehiculo:vehiculos(*)
           ),
-          ruta_programada:rutas_logisticas(*),
-          ruta_variacion:rutas_logisticas(*)
+          ruta_programada:rutas_logisticas!liq_viajes_ejecutados_ruta_programada_id_fkey(*),
+          ruta_variacion:rutas_logisticas!liq_viajes_ejecutados_ruta_variacion_id_fkey(*)
         `)
         .eq('quincena_id', quincenaId)
         .eq('fecha', fecha)

@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import type { LiqViajeEjecutado, LiqVehiculoTercero } from '@/types'
+import type { LiqViajeEjecutado } from '@/types'
 import {
   calcularCostosViaje,
   convertirDiaJSaISO,
@@ -10,7 +10,23 @@ import {
   type DatosRutaPlanificacion,
 } from '@/lib/utils/generar-viajes'
 
-// Hook para generar viajes desde rutas programadas
+// Tipo para ruta programada
+interface RutaProgramada {
+  vehiculo_tercero_id: string
+  ruta_id: string
+  dia_semana: number
+}
+
+// Tipo para viaje existente (solo para verificar duplicados)
+interface ViajeExistente {
+  vehiculo_tercero_id: string
+  fecha: string
+}
+
+/**
+ * Hook optimizado para generar viajes desde rutas programadas.
+ * Reduce de ~200 queries a ~5 queries usando batch operations.
+ */
 export function useGenerarViajesDesdeRutas() {
   const supabase = createClient()
   const queryClient = useQueryClient()
@@ -25,47 +41,51 @@ export function useGenerarViajesDesdeRutas() {
       quincenaId: string
       fechaInicio: string
       fechaFin: string
-      escenarioId?: string // Necesario para obtener costos de planificación
+      escenarioId?: string
     }): Promise<LiqViajeEjecutado[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener todos los vehículos terceros activos
+      // ========================================
+      // QUERY 1: Obtener vehículos terceros activos
+      // ========================================
       const { data: vehiculos, error: vehiculosError } = await sb
         .from('liq_vehiculos_terceros')
-        .select('*')
+        .select('id')
         .eq('activo', true)
 
       if (vehiculosError) throw vehiculosError
       if (!vehiculos || vehiculos.length === 0) return []
 
-      // Paso 1: Recolectar todas las rutas únicas que se van a usar
+      const vehiculoIds = vehiculos.map((v: { id: string }) => v.id)
+
+      // ========================================
+      // QUERY 2: Obtener TODAS las rutas programadas (batch)
+      // ========================================
+      const { data: todasRutasProgramadas, error: rutasError } = await sb
+        .from('liq_vehiculo_rutas_programadas')
+        .select('vehiculo_tercero_id, ruta_id, dia_semana')
+        .in('vehiculo_tercero_id', vehiculoIds)
+        .eq('activo', true)
+
+      if (rutasError) throw rutasError
+      if (!todasRutasProgramadas || todasRutasProgramadas.length === 0) return []
+
+      // Organizar rutas por vehículo
+      const rutasPorVehiculo = new Map<string, Map<number, string>>()
       const rutasUnicas = new Set<string>()
-      const vehiculosConRutas: Array<{
-        vehiculo: LiqVehiculoTercero
-        rutasPorDia: Map<number, string>
-      }> = []
 
-      for (const vehiculo of vehiculos as LiqVehiculoTercero[]) {
-        const { data: rutasProgramadas } = await sb
-          .from('liq_vehiculo_rutas_programadas')
-          .select('*')
-          .eq('vehiculo_tercero_id', vehiculo.id)
-          .eq('activo', true)
-
-        if (!rutasProgramadas || rutasProgramadas.length === 0) continue
-
-        const rutasPorDia = new Map<number, string>()
-        for (const rp of rutasProgramadas) {
-          rutasPorDia.set(rp.dia_semana, rp.ruta_id)
-          rutasUnicas.add(rp.ruta_id)
+      for (const rp of todasRutasProgramadas as RutaProgramada[]) {
+        if (!rutasPorVehiculo.has(rp.vehiculo_tercero_id)) {
+          rutasPorVehiculo.set(rp.vehiculo_tercero_id, new Map())
         }
-
-        vehiculosConRutas.push({ vehiculo, rutasPorDia })
+        rutasPorVehiculo.get(rp.vehiculo_tercero_id)!.set(rp.dia_semana, rp.ruta_id)
+        rutasUnicas.add(rp.ruta_id)
       }
 
-      // Paso 2: Obtener costos de planificación para todas las rutas
-      // Incluye peajes_ciclo y frecuencia para cálculos correctos
+      // ========================================
+      // QUERY 3: Obtener costos de planificación (batch)
+      // ========================================
       const datosPorRuta = new Map<string, DatosRutaPlanificacion>()
 
       if (escenarioId && rutasUnicas.size > 0) {
@@ -89,70 +109,97 @@ export function useGenerarViajesDesdeRutas() {
         }
       }
 
-      // Paso 3: Generar viajes con costos asignados
-      const viajesCreados: LiqViajeEjecutado[] = []
+      // ========================================
+      // QUERY 4: Obtener viajes existentes (batch)
+      // ========================================
+      const { data: viajesExistentes } = await sb
+        .from('liq_viajes_ejecutados')
+        .select('vehiculo_tercero_id, fecha')
+        .eq('quincena_id', quincenaId)
 
-      for (const { vehiculo, rutasPorDia } of vehiculosConRutas) {
-        const inicio = new Date(fechaInicio + 'T00:00:00')
-        const fin = new Date(fechaFin + 'T00:00:00')
-
-        for (let fecha = new Date(inicio); fecha <= fin; fecha.setDate(fecha.getDate() + 1)) {
-          // Convertir día de JS (0=Dom) a día ISO (1=Lun, 7=Dom)
-          const diaISO = convertirDiaJSaISO(fecha.getDay())
-
-          // Verificar si hay ruta para este día
-          const rutaProgramadaId = rutasPorDia.get(diaISO)
-          if (!rutaProgramadaId) continue
-
-          // Formatear fecha como YYYY-MM-DD
-          const fechaStr = fecha.toISOString().split('T')[0]
-
-          // Verificar si ya existe viaje para esta fecha y vehículo
-          const { data: existente } = await sb
-            .from('liq_viajes_ejecutados')
-            .select('id')
-            .eq('quincena_id', quincenaId)
-            .eq('vehiculo_tercero_id', vehiculo.id)
-            .eq('fecha', fechaStr)
-            .single()
-
-          if (existente) continue // Ya existe, saltar
-
-          // Calcular costos usando función pura
-          const datosRuta = datosPorRuta.get(rutaProgramadaId)
-          const costos = calcularCostosViaje(datosRuta, diaISO)
-
-          // Crear viaje con costos asignados
-          const { data: nuevoViaje, error: insertError } = await sb
-            .from('liq_viajes_ejecutados')
-            .insert({
-              quincena_id: quincenaId,
-              vehiculo_tercero_id: vehiculo.id,
-              fecha: fechaStr,
-              ruta_programada_id: rutaProgramadaId,
-              estado: 'pendiente',
-              costo_combustible: costos.costoCombustible,
-              costo_peajes: costos.costoPeajes,
-              costo_flete_adicional: costos.costoAdicionales,
-              costo_pernocta: costos.costoPernocta,
-              requiere_pernocta: costos.requierePernocta,
-              noches_pernocta: costos.nochesPernocta,
-              km_recorridos: costos.kmRecorridos,
-              costo_total: costos.costoTotal,
-            })
-            .select()
-            .single()
-
-          if (insertError) {
-            console.error('Error al crear viaje:', insertError)
-            continue
-          }
-
-          viajesCreados.push(nuevoViaje as LiqViajeEjecutado)
+      // Crear set de claves existentes para O(1) lookup
+      const existentesSet = new Set<string>()
+      if (viajesExistentes) {
+        for (const v of viajesExistentes as ViajeExistente[]) {
+          existentesSet.add(`${v.vehiculo_tercero_id}-${v.fecha}`)
         }
       }
 
-      return viajesCreados
+      // ========================================
+      // PASO 5: Calcular viajes a crear (sin queries)
+      // ========================================
+      const viajesACrear: Array<{
+        quincena_id: string
+        vehiculo_tercero_id: string
+        fecha: string
+        ruta_programada_id: string
+        estado: string
+        costo_combustible: number
+        costo_peajes: number
+        costo_flete_adicional: number
+        costo_pernocta: number
+        requiere_pernocta: boolean
+        noches_pernocta: number
+        km_recorridos: number
+        costo_total: number
+      }> = []
+
+      const inicio = new Date(fechaInicio + 'T00:00:00')
+      const fin = new Date(fechaFin + 'T00:00:00')
+
+      // Iterar por cada vehículo con rutas
+      for (const [vehiculoId, rutasPorDia] of rutasPorVehiculo) {
+        // Iterar por cada día de la quincena
+        for (let fecha = new Date(inicio); fecha <= fin; fecha.setDate(fecha.getDate() + 1)) {
+          const diaISO = convertirDiaJSaISO(fecha.getDay())
+          const rutaProgramadaId = rutasPorDia.get(diaISO)
+
+          if (!rutaProgramadaId) continue
+
+          const fechaStr = fecha.toISOString().split('T')[0]
+          const clave = `${vehiculoId}-${fechaStr}`
+
+          // Verificar duplicado en O(1)
+          if (existentesSet.has(clave)) continue
+
+          // Calcular costos
+          const datosRuta = datosPorRuta.get(rutaProgramadaId)
+          const costos = calcularCostosViaje(datosRuta, diaISO)
+
+          viajesACrear.push({
+            quincena_id: quincenaId,
+            vehiculo_tercero_id: vehiculoId,
+            fecha: fechaStr,
+            ruta_programada_id: rutaProgramadaId,
+            estado: 'pendiente',
+            costo_combustible: costos.costoCombustible,
+            costo_peajes: costos.costoPeajes,
+            costo_flete_adicional: costos.costoAdicionales,
+            costo_pernocta: costos.costoPernocta,
+            requiere_pernocta: costos.requierePernocta,
+            noches_pernocta: costos.nochesPernocta,
+            km_recorridos: costos.kmRecorridos,
+            costo_total: costos.costoTotal,
+          })
+        }
+      }
+
+      if (viajesACrear.length === 0) return []
+
+      // ========================================
+      // QUERY 5: INSERT batch de todos los viajes
+      // ========================================
+      const { data: viajesCreados, error: insertError } = await sb
+        .from('liq_viajes_ejecutados')
+        .insert(viajesACrear)
+        .select()
+
+      if (insertError) {
+        console.error('Error al crear viajes:', insertError)
+        throw insertError
+      }
+
+      return (viajesCreados || []) as LiqViajeEjecutado[]
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })
