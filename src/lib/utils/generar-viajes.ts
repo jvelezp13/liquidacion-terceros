@@ -47,14 +47,17 @@ export const DIAS_NOMBRE: Record<number, string> = {
  *
  * @param datosRuta - Datos de planificación de la ruta (costos por día, peajes, frecuencia)
  * @param diaISO - Día de la semana en formato ISO (1=Lunes, 7=Domingo)
+ * @param usarPrimerDiaSiFalta - Si es true y no hay costos para el día, usa el primer día disponible
+ *                               Útil para variaciones de ruta que se ejecutan en días diferentes
  * @returns Objeto con todos los costos calculados para el viaje
  */
 export function calcularCostosViaje(
   datosRuta: DatosRutaPlanificacion | undefined,
-  diaISO: number
+  diaISO: number,
+  usarPrimerDiaSiFalta: boolean = false
 ): CostosViaje {
   // Valores por defecto si no hay datos de ruta
-  if (!datosRuta) {
+  if (!datosRuta || !datosRuta.costos || datosRuta.costos.length === 0) {
     return {
       costoCombustible: 0,
       costoPeajes: 0,
@@ -69,9 +72,15 @@ export function calcularCostosViaje(
 
   const diaNombre = DIAS_NOMBRE[diaISO]
 
-  // FIX 1: Para frecuencia semanal, ignorar número de semana
-  // El ciclo se repite cada semana, así que buscamos solo por día
-  const costoDia = datosRuta.costos.find((c) => c.dia === diaNombre)
+  // Buscar costos del día específico
+  let costoDia = datosRuta.costos.find((c) => c.dia === diaNombre)
+
+  // Si no hay costos para este día y está habilitado el fallback, usar el primer día disponible
+  // Esto es útil para variaciones de ruta: los costos (km, combustible) son iguales
+  // independientemente del día en que se ejecute la ruta
+  if (!costoDia && usarPrimerDiaSiFalta) {
+    costoDia = datosRuta.costos[0]
+  }
 
   if (!costoDia) {
     // No hay costos para este día

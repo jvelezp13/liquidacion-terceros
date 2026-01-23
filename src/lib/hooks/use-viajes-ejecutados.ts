@@ -371,7 +371,9 @@ export function useUpdateEstadoViajeConVariacion() {
             peajesCiclo: planificacion.peajes_ciclo || 0,
             frecuencia: planificacion.frecuencia || 'semanal',
           }
-          costos = calcularCostosViaje(datosRuta, diaISO)
+          // Para variaciones, usar primer día disponible si no hay costos del día exacto
+          // Los costos de una ruta son iguales independientemente del día que se ejecute
+          costos = calcularCostosViaje(datosRuta, diaISO, true)
         }
       }
 
