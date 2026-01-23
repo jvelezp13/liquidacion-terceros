@@ -1,125 +1,139 @@
 # CLAUDE.md - Liquidación Terceros
 
-## Descripción del Proyecto
+## Descripción
 
-Sistema de liquidación quincenal para vehículos de terceros (fleteros). Comparte la base de datos Supabase con Planeación Logi.
+Sistema de liquidación quincenal para vehículos de terceros (fleteros). **Comparte la base de datos Supabase con PlaneacionLogi**.
 
-## Stack Tecnológico
+## Stack
 
-- **Frontend/Backend**: Next.js 16 (App Router) + TypeScript
-- **Base de Datos**: Supabase (PostgreSQL compartida con PlaneacionLogi)
-- **UI**: shadcn/ui + Tailwind CSS v4
-- **State Management**: TanStack Query (React Query)
-- **Forms**: React Hook Form + Zod
+- Next.js 16 (App Router) + TypeScript
+- Supabase (PostgreSQL compartida)
+- shadcn/ui + Tailwind v4
+- TanStack Query + React Hook Form + Zod
+- **Testing:** Vitest (43 tests unitarios)
 
-## Comandos de Desarrollo
+## Comandos
 
 ```bash
-npm run dev          # Servidor desarrollo (localhost:3000)
-npm run build        # Build producción
-npm run lint         # ESLint
+npm run dev           # localhost:3001
+npm run build
+npm run test          # Vitest
+npm run test:coverage
 ```
 
-## Estructura del Proyecto
+## Estructura
 
 ```
 src/
-├── app/
-│   ├── (auth)/              # Login
-│   │   └── login/
-│   └── (dashboard)/         # Rutas protegidas
-│       ├── contratistas/    # CRUD contratistas
-│       ├── vehiculos/       # Vehículos terceros
-│       ├── quincenas/       # Períodos de liquidación
-│       ├── validacion/      # Validación de rutas
-│       ├── liquidacion/     # Generar liquidaciones
-│       ├── pagos/           # Registrar pagos
-│       │   └── exportar/    # Exportar para Payana
-│       └── historial/       # Historial de liquidaciones
+├── app/(dashboard)/     # Rutas protegidas
+│   ├── quincenas/       # Períodos de liquidación
+│   ├── validacion/      # Validar viajes ejecutados
+│   ├── liquidacion/     # Generar liquidaciones
+│   └── pagos/exportar/  # Exportar CSV Payana
 ├── components/
-│   ├── ui/                  # shadcn/ui components
-│   └── layout/              # Sidebar, Header
+│   └── ui/              # shadcn/ui + loading-state.tsx
 ├── lib/
-│   ├── hooks/               # Custom hooks
-│   ├── supabase/            # Clientes Supabase
-│   ├── utils/               # Utilidades
-│   └── providers/           # React Query provider
+│   ├── hooks/           # Hooks TanStack Query
+│   ├── utils/           # Lógica pura testeable
+│   │   ├── calcular-liquidacion.ts
+│   │   ├── generar-viajes.ts
+│   │   ├── formatters.ts         # formatFecha, formatCOP
+│   │   └── toast-messages.ts     # Mensajes estandarizados
+│   └── supabase/        # Clientes
 └── types/
-    └── database.types.ts    # Tipos de BD
+    └── database.types.ts  # Auto-generado
 ```
 
-## Relación con Planeación Logi
+Alias: `@/` → `src/`
 
-Este proyecto **comparte la base de datos** con Planeación Logi:
+## Relación con PlaneacionLogi
 
-### Tablas propias (prefijo `liq_*`):
-- `liq_contratistas` - Propietarios de vehículos
-- `liq_vehiculos_terceros` - Vínculo vehículo-contratista
-- `liq_vehiculo_rutas_programadas` - Rutas por día de semana
-- `liq_quincenas` - Períodos de liquidación
-- `liq_viajes_ejecutados` - Viajes reales
-- `liq_liquidaciones` - Liquidaciones generadas
-- `liq_liquidacion_deducciones` - Deducciones aplicadas
-- `liq_historial_pagos` - Pagos realizados
-- `liq_sincronizacion_ejecucion` - Sync con PlaneacionLogi
+**Base de datos compartida.** Usa `~/CascadeProjects/PlaneacionLogi/app/.env.local` para credenciales.
 
-### Tablas referenciadas (solo lectura):
-- `escenarios` - Escenario activo
-- `vehiculos` - Vehículos con esquema='tercero'
-- `vehiculos_costos` - Costos por viaje
-- `rutas_logisticas` - Rutas planeadas
-- `ruta_municipios` - Municipios por ruta
-- `lejanias_config` - Configuración de costos
-- `matriz_desplazamientos` - Distancias y peajes
+### Tablas propias (prefijo `liq_*`)
+- `liq_contratistas`, `liq_vehiculos_terceros`, `liq_quincenas`
+- `liq_viajes_ejecutados`, `liq_liquidaciones`, `liq_historial_pagos`
+
+### Tablas referenciadas (solo lectura)
+- `escenarios`, `vehiculos` (esquema='tercero'), `vehiculos_costos`
+- `rutas_logisticas`, `ruta_municipios`, `matriz_desplazamientos`
+
+### Sincronización
+Liquidaciones → `ejecucion_rubros` (seguimiento PlaneacionLogi):
+- Q1: reemplaza valor
+- Q2: suma al valor existente (acumulado mensual)
 
 ## Flujo de Trabajo
 
-1. **Crear Quincena** → Auto-genera rutas desde programación
-2. **Validar Rutas** → Marcar ejecutada/no ejecutada/parcial
-3. **Generar Liquidación** → Cálculo automático + ajustes
-4. **Exportar Payana** → CSV con totales por contratista
-5. **Registrar Pago** → Confirmar referencia de pago
+1. **Crear Quincena** → Auto-genera viajes desde `liq_vehiculo_rutas_programadas`
+2. **Validar Viajes** → Marcar `ejecutado/no_ejecutado/variacion`
+3. **Generar Liquidación** → Cálculo automático + deducción 1%
+4. **Exportar Payana** → CSV consolidado por contratista
+5. **Registrar Pago** → Confirmar referencia
 
-## Cálculo de Liquidación
+## Estados
 
-```
-Flete base     = costo_por_viaje × viajes_ejecutados
-Lejanía+Peajes = suma de costos de rutas (de rutas_logisticas)
-Pernocta       = noches × tarifa (de lejanias_config)
-Ajustes        = manuales (+/-)
-────────────────────────────────────────────────────────
-Subtotal       = suma
-────────────────────────────────────────────────────────
-Deducciones:
-  - 1% fijo
-  - Anticipos
-  - Otros
-────────────────────────────────────────────────────────
-TOTAL A PAGAR  = Subtotal - Deducciones
-```
+**Quincena:** `borrador` → `validado` → `liquidado` → `pagado`
 
-## Configuración
+**Viaje:** `pendiente`, `ejecutado`, `no_ejecutado`, `variacion`
 
-Copiar credenciales de Supabase desde `PlaneacionLogi/app/.env.local`:
-```bash
-cp ../PlaneacionLogi/app/.env.local .env.local
+## Arquitectura: Hooks + Utils
+
+Patrón de separación en 2 capas:
+
+```typescript
+// Hook: coordina queries Supabase (TanStack Query)
+use-generar-viajes.ts → fetching + orquestación
+
+// Utils: lógica pura testeable (sin Supabase)
+utils/generar-viajes.ts → calcularCostosViaje()
 ```
 
-## Alias de Imports
+**Beneficio:** Utils son 100% testeables sin mocks.
 
-El alias `@/` apunta a `src/`
+### Cálculos Específicos de Viajes
 
-## Estados de Quincena
+- **FIX 2:** Peajes distribuidos: `peajesCiclo / cantidadDíasCiclo`
+- **FIX 4:** Pernocta al 50% (solo conductor): `Math.round(pernocta / 2)`
+- Frecuencia semanal: ciclo se repite cada semana (ignorar número de semana)
 
-- `borrador` - En proceso de validación
-- `validado` - Rutas validadas, listo para liquidar
-- `liquidado` - Liquidación generada
-- `pagado` - Pagos registrados
+Ver implementación en `utils/generar-viajes.ts`.
 
-## Estados de Viaje
+## Convenciones
 
-- `pendiente` - Sin validar
-- `ejecutado` - Ruta completa
-- `parcial` - Ruta parcial
-- `no_ejecutado` - No se realizó
-- `variacion` - Ruta diferente a la planeada
+- Hooks: `use-{entidad}.ts` o `use-{entidad}-{accion}.ts`
+- Utils: `{accion}-{entidad}.ts`
+- Query keys: `['entidad', filtros]` ej: `['viajes-ejecutados', quincenaId]`
+
+## Testing
+
+Tests unitarios en `__tests__/unit/utils/`:
+- `calcular-liquidacion.test.ts` (18 tests)
+- `generar-viajes.test.ts` (12 tests)
+- `exportar-pagos.test.ts` (11 tests)
+- `sincronizar-seguimiento.test.ts` (2 tests)
+
+**Total: 43 tests** ✅
+
+## Utilidades Centralizadas
+
+```typescript
+// Formatters
+import { formatFecha, formatCOP } from '@/lib/utils/formatters'
+formatFecha('2025-01-15')  // "15 ene 2025"
+formatCOP(150000)          // "$150.000"
+
+// Toast Messages
+import { toastMessages } from '@/lib/utils/toast-messages'
+toast.success(toastMessages.success.guardado)
+
+// Loading States
+import { LoadingState, LoadingTable } from '@/components/ui/loading-state'
+```
+
+## Mejoras Recientes (Enero 2025)
+
+- Refactoring: dividir hooks grandes, extraer utils testeables
+- Testing: Vitest desde cero, 43 tests unitarios
+- Estandarización: loading states, formatters, toast messages
+- Reducción código: ~33% en hooks principales
