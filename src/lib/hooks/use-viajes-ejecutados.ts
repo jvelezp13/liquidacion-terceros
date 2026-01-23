@@ -52,7 +52,7 @@ export function getEstadoViajeLabel(estado: string) {
   return estadosViaje.find((e) => e.value === estado)?.label || estado
 }
 
-// Hook para obtener viajes de una quincena
+// Hook para obtener viajes de una quincena (optimizado con joins)
 export function useViajesQuincena(quincenaId: string | undefined) {
   const supabase = createClient()
 
@@ -64,10 +64,19 @@ export function useViajesQuincena(quincenaId: string | undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener viajes de la quincena
+      // Obtener viajes con joins - 1 query en lugar de N+1
       const { data: viajes, error } = await sb
         .from('liq_viajes_ejecutados')
-        .select('*')
+        .select(`
+          *,
+          vehiculo_tercero:liq_vehiculos_terceros!inner(
+            *,
+            contratista:liq_contratistas(id, nombre),
+            vehiculo:vehiculos(*)
+          ),
+          ruta_programada:rutas_logisticas(*),
+          ruta_variacion:rutas_logisticas(*)
+        `)
         .eq('quincena_id', quincenaId)
         .order('fecha')
         .order('vehiculo_tercero_id')
@@ -75,68 +84,18 @@ export function useViajesQuincena(quincenaId: string | undefined) {
       if (error) throw error
       if (!viajes || viajes.length === 0) return []
 
-      // Obtener detalles de cada viaje
-      const result = await Promise.all(
-        (viajes as LiqViajeEjecutado[]).map(async (viaje) => {
-          // Obtener vehículo tercero con contratista
-          const { data: vehiculoTercero } = await sb
-            .from('liq_vehiculos_terceros')
-            .select('*')
-            .eq('id', viaje.vehiculo_tercero_id)
-            .single()
-
-          // Obtener contratista del vehículo
-          let contratista = null
-          if (vehiculoTercero?.contratista_id) {
-            const { data: contratistaData } = await sb
-              .from('liq_contratistas')
-              .select('id, nombre')
-              .eq('id', vehiculoTercero.contratista_id)
-              .single()
-            contratista = contratistaData
-          }
-
-          // Obtener ruta programada si existe
-          let ruta = null
-          if (viaje.ruta_programada_id) {
-            const { data: rutaData } = await sb
-              .from('rutas_logisticas')
-              .select('*')
-              .eq('id', viaje.ruta_programada_id)
-              .single()
-
-            ruta = rutaData as RutaLogistica
-          }
-
-          // Obtener ruta de variación si existe
-          let rutaVariacion = null
-          if (viaje.ruta_variacion_id) {
-            const { data: rutaVarData } = await sb
-              .from('rutas_logisticas')
-              .select('*')
-              .eq('id', viaje.ruta_variacion_id)
-              .single()
-
-            rutaVariacion = rutaVarData as RutaLogistica
-          }
-
-          return {
-            ...viaje,
-            vehiculo_tercero: {
-              ...vehiculoTercero,
-              contratista,
-            } as LiqVehiculoTercero & {
-              placa: string
-              conductor_nombre: string | null
-              contratista?: { id: string; nombre: string }
-            },
-            ruta: ruta || undefined,
-            ruta_variacion: rutaVariacion || undefined,
-          }
-        })
-      )
-
-      return result
+      // Transformar datos al formato esperado
+      return viajes.map((viaje: any) => ({
+        ...viaje,
+        vehiculo_tercero: viaje.vehiculo_tercero
+          ? {
+              ...viaje.vehiculo_tercero,
+              contratista: viaje.vehiculo_tercero.contratista || undefined,
+            }
+          : undefined,
+        ruta: viaje.ruta_programada || undefined,
+        ruta_variacion: viaje.ruta_variacion || undefined,
+      }))
     },
     enabled: !!quincenaId,
   })
@@ -166,7 +125,7 @@ export function useViajesVehiculo(quincenaId: string | undefined, vehiculoTercer
   })
 }
 
-// Hook para obtener viajes por fecha
+// Hook para obtener viajes por fecha (optimizado con joins)
 export function useViajesPorFecha(quincenaId: string | undefined, fecha: string | undefined) {
   const supabase = createClient()
 
@@ -178,9 +137,19 @@ export function useViajesPorFecha(quincenaId: string | undefined, fecha: string 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
+      // Obtener viajes con joins - 1 query en lugar de N+1
       const { data: viajes, error } = await sb
         .from('liq_viajes_ejecutados')
-        .select('*')
+        .select(`
+          *,
+          vehiculo_tercero:liq_vehiculos_terceros!inner(
+            *,
+            contratista:liq_contratistas(id, nombre),
+            vehiculo:vehiculos(*)
+          ),
+          ruta_programada:rutas_logisticas(*),
+          ruta_variacion:rutas_logisticas(*)
+        `)
         .eq('quincena_id', quincenaId)
         .eq('fecha', fecha)
         .order('vehiculo_tercero_id')
@@ -188,66 +157,18 @@ export function useViajesPorFecha(quincenaId: string | undefined, fecha: string 
       if (error) throw error
       if (!viajes || viajes.length === 0) return []
 
-      // Obtener detalles
-      const result = await Promise.all(
-        (viajes as LiqViajeEjecutado[]).map(async (viaje) => {
-          const { data: vehiculoTercero } = await sb
-            .from('liq_vehiculos_terceros')
-            .select('*')
-            .eq('id', viaje.vehiculo_tercero_id)
-            .single()
-
-          // Obtener contratista
-          let contratista = null
-          if (vehiculoTercero?.contratista_id) {
-            const { data: contratistaData } = await sb
-              .from('liq_contratistas')
-              .select('id, nombre')
-              .eq('id', vehiculoTercero.contratista_id)
-              .single()
-            contratista = contratistaData
-          }
-
-          let ruta = null
-          if (viaje.ruta_programada_id) {
-            const { data: rutaData } = await sb
-              .from('rutas_logisticas')
-              .select('*')
-              .eq('id', viaje.ruta_programada_id)
-              .single()
-
-            ruta = rutaData as RutaLogistica
-          }
-
-          // Obtener ruta de variación si existe
-          let rutaVariacion = null
-          if (viaje.ruta_variacion_id) {
-            const { data: rutaVarData } = await sb
-              .from('rutas_logisticas')
-              .select('*')
-              .eq('id', viaje.ruta_variacion_id)
-              .single()
-
-            rutaVariacion = rutaVarData as RutaLogistica
-          }
-
-          return {
-            ...viaje,
-            vehiculo_tercero: {
-              ...vehiculoTercero,
-              contratista,
-            } as LiqVehiculoTercero & {
-              placa: string
-              conductor_nombre: string | null
-              contratista?: { id: string; nombre: string }
-            },
-            ruta: ruta || undefined,
-            ruta_variacion: rutaVariacion || undefined,
-          }
-        })
-      )
-
-      return result
+      // Transformar datos al formato esperado
+      return viajes.map((viaje: any) => ({
+        ...viaje,
+        vehiculo_tercero: viaje.vehiculo_tercero
+          ? {
+              ...viaje.vehiculo_tercero,
+              contratista: viaje.vehiculo_tercero.contratista || undefined,
+            }
+          : undefined,
+        ruta: viaje.ruta_programada || undefined,
+        ruta_variacion: viaje.ruta_variacion || undefined,
+      }))
     },
     enabled: !!quincenaId && !!fecha,
   })
