@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -53,6 +53,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
+import { createClient } from '@/lib/supabase/client'
+import { calcularCostosViaje, type DatosRutaPlanificacion, type CostoDiaPlanificacion } from '@/lib/utils/generar-viajes'
 import type { LiqVehiculoTerceroConDetalles, RutaLogistica } from '@/types'
 
 // Schema de validacion
@@ -91,6 +93,7 @@ interface ViajeManualFormProps {
   vehiculos: LiqVehiculoTerceroConDetalles[]
   fechaInicio: Date
   fechaFin: Date
+  escenarioId?: string // Para consultar costos de planificacion_lejanias
   onSubmit: (data: {
     vehiculo_tercero_id: string
     fecha: string
@@ -111,11 +114,13 @@ export function ViajeManualForm({
   vehiculos,
   fechaInicio,
   fechaFin,
+  escenarioId,
   onSubmit,
   isLoading = false,
 }: ViajeManualFormProps) {
   const [open, setOpen] = useState(false)
   const [paso, setPaso] = useState<Paso>(1)
+  const [cargandoCostos, setCargandoCostos] = useState(false)
 
   const { data: rutasLogisticas = [] } = useRutasLogisticas()
 
@@ -161,6 +166,58 @@ export function ViajeManualForm({
       (r) => r.vehiculo_id === vehiculoSeleccionado.vehiculo_id
     )
   }, [rutasLogisticas, vehiculoSeleccionado])
+
+  const rutaId = form.watch('ruta_id')
+
+  // Función para cargar costos de planificación cuando se selecciona una ruta existente
+  const cargarCostosDeRuta = useCallback(async (rutaIdSeleccionada: string) => {
+    if (!escenarioId || !rutaIdSeleccionada) return
+
+    setCargandoCostos(true)
+    try {
+      const supabase = createClient()
+      // Consultar planificacion_lejanias para obtener costos_por_dia y peajes_ciclo
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: planificacion, error } = await (supabase as any)
+        .from('planificacion_lejanias')
+        .select('costos_por_dia, peajes_ciclo, frecuencia')
+        .eq('escenario_id', escenarioId)
+        .eq('ruta_id', rutaIdSeleccionada)
+        .eq('tipo', 'logistico')
+        .single()
+
+      if (error || !planificacion) {
+        // No hay planificación para esta ruta, los costos quedan en 0
+        return
+      }
+
+      // Construir DatosRutaPlanificacion para calcularCostosViaje
+      const datosRuta: DatosRutaPlanificacion = {
+        costos: (planificacion.costos_por_dia || []) as CostoDiaPlanificacion[],
+        peajesCiclo: planificacion.peajes_ciclo || 0,
+        frecuencia: planificacion.frecuencia || 'quincenal',
+      }
+
+      // Usar calcularCostosViaje con usarPrimerDiaSiFalta=true
+      // Esto obtiene costos promedio de la ruta independiente del día
+      const costos = calcularCostosViaje(datosRuta, 1, true)
+
+      // Autocompletar campos del formulario
+      form.setValue('costo_combustible', Math.round(costos.costoCombustible))
+      form.setValue('costo_peajes', Math.round(costos.costoPeajes))
+      form.setValue('costo_flete_adicional', Math.round(costos.costoAdicionales))
+      form.setValue('costo_pernocta', Math.round(costos.costoPernocta))
+    } finally {
+      setCargandoCostos(false)
+    }
+  }, [escenarioId, form])
+
+  // Efecto: cuando se selecciona una ruta existente, cargar costos
+  useEffect(() => {
+    if (tipoRuta === 'existente' && rutaId) {
+      cargarCostosDeRuta(rutaId)
+    }
+  }, [tipoRuta, rutaId, cargarCostosDeRuta])
 
   // Resetear formulario al cerrar
   const handleOpenChange = (isOpen: boolean) => {

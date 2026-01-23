@@ -354,6 +354,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                 vehiculos={vehiculosTerceros}
                 fechaInicio={new Date(quincena.fecha_inicio + 'T00:00:00')}
                 fechaFin={new Date(quincena.fecha_fin + 'T00:00:00')}
+                escenarioId={escenario?.id}
                 onSubmit={handleCrearViajeManual}
                 isLoading={upsertViajeMutation.isPending}
               />
