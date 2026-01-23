@@ -3,35 +3,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { LiqViajeEjecutado, LiqVehiculoTercero } from '@/types'
-
-// Tipo para costos de un día desde planificacion_lejanias
-interface CostoDiaPlanificacion {
-  dia: string // 'lunes', 'martes', etc.
-  semana: number
-  km_total: number
-  combustible: number
-  adicionales: number
-  peajes?: number
-  pernocta: number
-}
-
-// Tipo para almacenar datos de planificación de una ruta
-interface DatosRutaPlanificacion {
-  costos: CostoDiaPlanificacion[]
-  peajesCiclo: number
-  frecuencia: string
-}
-
-// Mapeo de día ISO (1-7) a nombre de día
-const DIAS_NOMBRE: Record<number, string> = {
-  1: 'lunes',
-  2: 'martes',
-  3: 'miercoles',
-  4: 'jueves',
-  5: 'viernes',
-  6: 'sabado',
-  7: 'domingo',
-}
+import {
+  calcularCostosViaje,
+  convertirDiaJSaISO,
+  type CostoDiaPlanificacion,
+  type DatosRutaPlanificacion,
+} from '@/lib/utils/generar-viajes'
 
 // Hook para generar viajes desde rutas programadas
 export function useGenerarViajesDesdeRutas() {
@@ -115,24 +92,13 @@ export function useGenerarViajesDesdeRutas() {
       // Paso 3: Generar viajes con costos asignados
       const viajesCreados: LiqViajeEjecutado[] = []
 
-      // Determinar número de semana dentro de la quincena (1 o 2)
-      const getSemanaQuincena = (fecha: Date, fechaInicioQuincena: Date): number => {
-        const diffDias = Math.floor(
-          (fecha.getTime() - fechaInicioQuincena.getTime()) / (1000 * 60 * 60 * 24)
-        )
-        return diffDias < 7 ? 1 : 2
-      }
-
-      const fechaInicioDate = new Date(fechaInicio + 'T00:00:00')
-
       for (const { vehiculo, rutasPorDia } of vehiculosConRutas) {
         const inicio = new Date(fechaInicio + 'T00:00:00')
         const fin = new Date(fechaFin + 'T00:00:00')
 
         for (let fecha = new Date(inicio); fecha <= fin; fecha.setDate(fecha.getDate() + 1)) {
           // Convertir día de JS (0=Dom) a día ISO (1=Lun, 7=Dom)
-          const diaJS = fecha.getDay()
-          const diaISO = diaJS === 0 ? 7 : diaJS
+          const diaISO = convertirDiaJSaISO(fecha.getDay())
 
           // Verificar si hay ruta para este día
           const rutaProgramadaId = rutasPorDia.get(diaISO)
@@ -152,43 +118,9 @@ export function useGenerarViajesDesdeRutas() {
 
           if (existente) continue // Ya existe, saltar
 
-          // Buscar costos del día desde la planificación
-          let costoCombustible = 0
-          let costoPeajes = 0
-          let costoAdicionales = 0 // Se asignará como flete_adicional
-          let costoPernocta = 0
-          let requierePernocta = false
-          let nochesPernocta = 0
-          let kmRecorridos = 0
-
+          // Calcular costos usando función pura
           const datosRuta = datosPorRuta.get(rutaProgramadaId)
-          if (datosRuta) {
-            const diaNombre = DIAS_NOMBRE[diaISO]
-
-            // FIX 1: Para frecuencia semanal, ignorar número de semana
-            // El ciclo se repite cada semana, así que buscamos solo por día
-            const costoDia = datosRuta.costos.find((c) => c.dia === diaNombre)
-
-            if (costoDia) {
-              // FIX 5: Guardar km recorridos
-              kmRecorridos = costoDia.km_total || 0
-
-              costoCombustible = costoDia.combustible || 0
-              costoAdicionales = costoDia.adicionales || 0
-
-              // FIX 4: Pernocta al 50% (solo el conductor, el copiloto no va con terceros)
-              costoPernocta = Math.round((costoDia.pernocta || 0) / 2)
-              requierePernocta = costoPernocta > 0
-              nochesPernocta = requierePernocta ? 1 : 0
-
-              // FIX 2: Peajes distribuidos proporcionalmente entre días del ciclo
-              // peajes_ciclo es el total del ciclo, lo dividimos entre la cantidad de días
-              const diasCiclo = datosRuta.costos.length || 1
-              costoPeajes = Math.round(datosRuta.peajesCiclo / diasCiclo)
-            }
-          }
-
-          const costoTotal = costoCombustible + costoPeajes + costoAdicionales + costoPernocta
+          const costos = calcularCostosViaje(datosRuta, diaISO)
 
           // Crear viaje con costos asignados
           const { data: nuevoViaje, error: insertError } = await sb
@@ -199,14 +131,14 @@ export function useGenerarViajesDesdeRutas() {
               fecha: fechaStr,
               ruta_programada_id: rutaProgramadaId,
               estado: 'pendiente',
-              costo_combustible: costoCombustible,
-              costo_peajes: costoPeajes,
-              costo_flete_adicional: costoAdicionales,
-              costo_pernocta: costoPernocta,
-              requiere_pernocta: requierePernocta,
-              noches_pernocta: nochesPernocta,
-              km_recorridos: kmRecorridos,
-              costo_total: costoTotal,
+              costo_combustible: costos.costoCombustible,
+              costo_peajes: costos.costoPeajes,
+              costo_flete_adicional: costos.costoAdicionales,
+              costo_pernocta: costos.costoPernocta,
+              requiere_pernocta: costos.requierePernocta,
+              noches_pernocta: costos.nochesPernocta,
+              km_recorridos: costos.kmRecorridos,
+              costo_total: costos.costoTotal,
             })
             .select()
             .single()
