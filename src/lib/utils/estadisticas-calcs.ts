@@ -46,6 +46,18 @@ export interface DatosVehiculo {
   costoPorViaje: number
 }
 
+export interface DatosRuta {
+  id: string
+  nombre: string
+  codigo: string
+  totalViajes: number
+  kmTotal: number
+  combustible: number
+  peajes: number
+  total: number
+  costoPorViaje: number
+}
+
 export interface DesgloseCostos {
   fleteBases: number
   combustible: number

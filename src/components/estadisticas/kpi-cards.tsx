@@ -6,7 +6,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCOP } from '@/lib/utils/formatters'
 import {
   calcularCostoPorViaje,
-  calcularTasaCumplimiento,
   calcularVariacionPorcentual,
 } from '@/lib/utils/estadisticas-calcs'
 import type { DatosResumen, DatosEvolucion } from '@/lib/utils/estadisticas-calcs'
@@ -17,17 +16,16 @@ interface KPICardsProps {
   isLoading: boolean
 }
 
-// Skeleton para loading
 function KPICardSkeleton() {
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardContent className="pt-4 pb-3">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-8 w-8 rounded-full" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-6 w-6 rounded-full" />
         </div>
-        <Skeleton className="h-8 w-32 mt-2" />
-        <Skeleton className="h-3 w-20 mt-2" />
+        <Skeleton className="h-6 w-24 mt-1.5" />
+        <Skeleton className="h-2.5 w-14 mt-1" />
       </CardContent>
     </Card>
   )
@@ -36,8 +34,8 @@ function KPICardSkeleton() {
 export function KPICards({ resumen, evolucion, isLoading }: KPICardsProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
           <KPICardSkeleton key={i} />
         ))}
       </div>
@@ -46,29 +44,21 @@ export function KPICards({ resumen, evolucion, isLoading }: KPICardsProps) {
 
   if (!resumen) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className="text-center py-6 text-muted-foreground text-sm">
         No hay datos disponibles. Genera liquidaciones para ver estadisticas.
       </div>
     )
   }
 
   // Calcular metricas derivadas
-  const costoPorViaje = calcularCostoPorViaje(
-    resumen.totalPagado,
-    resumen.viajesEjecutados + resumen.viajesVariacion
-  )
-
-  const tasaCumplimiento = calcularTasaCumplimiento(
-    resumen.viajesEjecutados,
-    resumen.viajesVariacion,
-    resumen.totalViajes
-  )
+  const viajesRealizados = resumen.viajesEjecutados + resumen.viajesVariacion
+  const costoPorViaje = calcularCostoPorViaje(resumen.totalPagado, viajesRealizados)
 
   // Calcular promedio mensual
   const mesesConDatos = resumen.totalQuincenas > 0 ? Math.ceil(resumen.totalQuincenas / 2) : 1
   const promedioMensual = Math.round(resumen.totalPagado / mesesConDatos)
 
-  // Calcular variacion vs periodo anterior (ultimas 2 quincenas vs 2 anteriores)
+  // Calcular variacion vs periodo anterior
   let variacion = 0
   if (evolucion && evolucion.length >= 4) {
     const ultimasDos = evolucion.slice(-2)
@@ -88,7 +78,7 @@ export function KPICards({ resumen, evolucion, isLoading }: KPICardsProps) {
       subtext: `${resumen.totalQuincenas} quincenas`,
     },
     {
-      label: 'Promedio Mensual',
+      label: 'Prom. Mensual',
       value: formatCOP(promedioMensual),
       icon: Calendar,
       iconBg: 'bg-blue-100',
@@ -96,15 +86,15 @@ export function KPICards({ resumen, evolucion, isLoading }: KPICardsProps) {
       subtext: `${mesesConDatos} meses`,
     },
     {
-      label: 'Viajes Ejecutados',
-      value: resumen.viajesEjecutados + resumen.viajesVariacion,
+      label: 'Viajes',
+      value: viajesRealizados,
       icon: Truck,
       iconBg: 'bg-purple-100',
       iconColor: 'text-purple-600',
-      subtext: `de ${resumen.totalViajes} totales`,
+      subtext: 'realizados',
     },
     {
-      label: 'Costo por Viaje',
+      label: '$/Viaje',
       value: formatCOP(costoPorViaje),
       icon: Target,
       iconBg: 'bg-amber-100',
@@ -113,36 +103,28 @@ export function KPICards({ resumen, evolucion, isLoading }: KPICardsProps) {
       highlight: true,
     },
     {
-      label: 'Cumplimiento',
-      value: `${tasaCumplimiento}%`,
-      icon: Target,
-      iconBg: tasaCumplimiento >= 80 ? 'bg-green-100' : tasaCumplimiento >= 60 ? 'bg-amber-100' : 'bg-red-100',
-      iconColor: tasaCumplimiento >= 80 ? 'text-green-600' : tasaCumplimiento >= 60 ? 'text-amber-600' : 'text-red-600',
-      subtext: 'viajes completados',
-    },
-    {
       label: 'Variacion',
       value: `${variacion >= 0 ? '+' : ''}${variacion}%`,
       icon: variacion >= 0 ? TrendingUp : TrendingDown,
-      iconBg: variacion >= 0 ? 'bg-red-100' : 'bg-green-100', // Mas gasto = rojo
+      iconBg: variacion >= 0 ? 'bg-red-100' : 'bg-green-100',
       iconColor: variacion >= 0 ? 'text-red-600' : 'text-green-600',
-      subtext: 'vs periodo anterior',
+      subtext: 'vs anterior',
     },
   ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
       {kpis.map((kpi) => (
-        <Card key={kpi.label} className={kpi.highlight ? 'ring-2 ring-blue-200' : ''}>
-          <CardContent className="pt-6">
+        <Card key={kpi.label} className={kpi.highlight ? 'ring-1 ring-blue-200' : ''}>
+          <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">{kpi.label}</span>
-              <div className={`p-2 rounded-full ${kpi.iconBg}`}>
-                <kpi.icon className={`h-4 w-4 ${kpi.iconColor}`} />
+              <span className="text-xs text-muted-foreground">{kpi.label}</span>
+              <div className={`p-1.5 rounded-full ${kpi.iconBg}`}>
+                <kpi.icon className={`h-3 w-3 ${kpi.iconColor}`} />
               </div>
             </div>
-            <p className="text-2xl font-bold mt-2">{kpi.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{kpi.subtext}</p>
+            <p className="text-xl font-bold mt-1">{kpi.value}</p>
+            <p className="text-[10px] text-muted-foreground">{kpi.subtext}</p>
           </CardContent>
         </Card>
       ))}

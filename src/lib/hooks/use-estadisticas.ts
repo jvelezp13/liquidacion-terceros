@@ -11,6 +11,7 @@ import {
   type DatosEvolucion,
   type DatosContratista,
   type DatosVehiculo,
+  type DatosRuta,
   type DesgloseCostos,
 } from '@/lib/utils/estadisticas-calcs'
 
@@ -330,6 +331,7 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
 }
 
 // Hook para metricas por vehiculo
+// Corregido: ahora obtiene vehiculos desde los viajes del escenario (no todos los del tenant)
 export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
@@ -342,7 +344,7 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas liquidadas/pagadas
+      // 1. Obtener quincenas del escenario activo
       const { data: quincenas } = await sb
         .from('liq_quincenas')
         .select('id')
@@ -353,15 +355,43 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
 
       const quincenaIds = quincenas.map((q: { id: string }) => q.id)
 
-      // Obtener vehiculos terceros con sus relaciones
+      // 2. Obtener vehiculo_tercero_id unicos de viajes en esas quincenas
+      const { data: viajesConVehiculos } = await sb
+        .from('liq_viajes_ejecutados')
+        .select('vehiculo_tercero_id, estado')
+        .in('quincena_id', quincenaIds)
+
+      if (!viajesConVehiculos || viajesConVehiculos.length === 0) return []
+
+      // Extraer IDs unicos de vehiculos terceros que tienen viajes
+      const vehiculoTerceroIds = [...new Set(
+        (viajesConVehiculos as { vehiculo_tercero_id: string }[])
+          .map(v => v.vehiculo_tercero_id)
+          .filter(Boolean)
+      )]
+
+      if (vehiculoTerceroIds.length === 0) return []
+
+      // Agrupar viajes por vehiculo (solo ejecutados y variacion)
+      const viajesPorVehiculo = new Map<string, number>()
+      for (const v of viajesConVehiculos as { vehiculo_tercero_id: string; estado: string }[]) {
+        if (v.estado === 'ejecutado' || v.estado === 'variacion') {
+          const actual = viajesPorVehiculo.get(v.vehiculo_tercero_id) || 0
+          viajesPorVehiculo.set(v.vehiculo_tercero_id, actual + 1)
+        }
+      }
+
+      // 3. Obtener detalles de esos vehiculos especificos
+      // Nota: placa esta directamente en liq_vehiculos_terceros (no en vehiculos)
       let vehiculosQuery = sb
         .from('liq_vehiculos_terceros')
         .select(`
           id,
+          placa,
           contratista_id,
-          vehiculo:vehiculos(placa),
           contratista:liq_contratistas(id, nombre)
         `)
+        .in('id', vehiculoTerceroIds)
 
       if (filters.contratistaId) {
         vehiculosQuery = vehiculosQuery.eq('contratista_id', filters.contratistaId)
@@ -374,16 +404,15 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
 
       const vehiculosList = vehiculos as {
         id: string
+        placa: string
         contratista_id: string
-        vehiculo: { placa: string } | null
         contratista: { id: string; nombre: string }
       }[]
-      const vehiculoIds = vehiculosList.map(v => v.id)
 
       // Obtener IDs de contratistas unicos
       const contratistaIds = [...new Set(vehiculosList.map(v => v.contratista_id))]
 
-      // Batch query: pagos por contratista (misma fuente que useEstadisticasContratistas)
+      // Batch query: pagos por contratista
       const { data: todosPagos } = await sb
         .from('liq_historial_pagos')
         .select('contratista_id, monto_total')
@@ -395,22 +424,6 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       for (const p of (todosPagos || []) as { contratista_id: string; monto_total: number }[]) {
         const actual = pagosPorContratista.get(p.contratista_id) || 0
         pagosPorContratista.set(p.contratista_id, actual + (p.monto_total || 0))
-      }
-
-      // Batch query: todos los viajes de todos los vehiculos
-      const { data: todosViajes } = await sb
-        .from('liq_viajes_ejecutados')
-        .select('vehiculo_tercero_id, estado')
-        .in('vehiculo_tercero_id', vehiculoIds)
-        .in('quincena_id', quincenaIds)
-
-      // Agrupar viajes por vehiculo (solo ejecutados y variacion)
-      const viajesPorVehiculo = new Map<string, number>()
-      for (const v of (todosViajes || []) as { vehiculo_tercero_id: string; estado: string }[]) {
-        if (v.estado === 'ejecutado' || v.estado === 'variacion') {
-          const actual = viajesPorVehiculo.get(v.vehiculo_tercero_id) || 0
-          viajesPorVehiculo.set(v.vehiculo_tercero_id, actual + 1)
-        }
       }
 
       // Calcular viajes totales por contratista (para prorrateo)
@@ -435,7 +448,7 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
 
           return {
             id: v.id,
-            placa: v.vehiculo?.placa || 'N/A',
+            placa: v.placa || 'N/A',
             contratistaId: v.contratista?.id || '',
             contratistaNombre: v.contratista?.nombre || 'N/A',
             totalViajes,
@@ -563,6 +576,121 @@ export function useEstadisticasCostos(filters: EstadisticasFilters = {}) {
   })
 }
 
+// Hook para analisis de rutas
+export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
+  const supabase = createClient()
+  const { data: escenario } = useEscenarioActivo()
+
+  return useQuery({
+    queryKey: ['estadisticas-rutas', escenario?.id, filters],
+    queryFn: async (): Promise<DatosRuta[]> => {
+      if (!escenario?.id) return []
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any
+
+      // 1. Obtener quincenas del escenario activo
+      const { data: quincenas } = await sb
+        .from('liq_quincenas')
+        .select('id')
+        .eq('escenario_id', escenario.id)
+        .in('estado', ['liquidado', 'pagado'])
+
+      if (!quincenas || quincenas.length === 0) return []
+
+      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
+
+      // 2. Obtener viajes con datos de ruta (ruta_programada_id o ruta_variacion_id)
+      const { data: viajes } = await sb
+        .from('liq_viajes_ejecutados')
+        .select(`
+          estado,
+          ruta_programada_id,
+          ruta_variacion_id,
+          km_recorridos,
+          costo_combustible,
+          costo_peajes,
+          costo_total
+        `)
+        .in('quincena_id', quincenaIds)
+        .in('estado', ['ejecutado', 'variacion'])
+
+      if (!viajes || viajes.length === 0) return []
+
+      // 3. Agrupar viajes por ruta (usar variacion si existe, sino programada)
+      const datosPorRuta = new Map<string, {
+        viajes: number
+        kmTotal: number
+        combustible: number
+        peajes: number
+        total: number
+      }>()
+
+      for (const v of viajes as {
+        ruta_programada_id: string | null
+        ruta_variacion_id: string | null
+        km_recorridos: number | null
+        costo_combustible: number | null
+        costo_peajes: number | null
+        costo_total: number | null
+      }[]) {
+        // Usar la ruta de variacion si existe, sino la programada
+        const rutaId = v.ruta_variacion_id || v.ruta_programada_id
+        if (!rutaId) continue
+
+        const actual = datosPorRuta.get(rutaId) || {
+          viajes: 0,
+          kmTotal: 0,
+          combustible: 0,
+          peajes: 0,
+          total: 0,
+        }
+
+        actual.viajes++
+        actual.kmTotal += v.km_recorridos || 0
+        actual.combustible += v.costo_combustible || 0
+        actual.peajes += v.costo_peajes || 0
+        actual.total += v.costo_total || 0
+
+        datosPorRuta.set(rutaId, actual)
+      }
+
+      if (datosPorRuta.size === 0) return []
+
+      // 4. Obtener nombres de rutas
+      const rutaIds = [...datosPorRuta.keys()]
+      const { data: rutas } = await sb
+        .from('rutas_logisticas')
+        .select('id, nombre, codigo')
+        .in('id', rutaIds)
+
+      if (!rutas) return []
+
+      // 5. Construir resultados
+      const resultados: DatosRuta[] = (rutas as { id: string; nombre: string; codigo: string | null }[])
+        .map(r => {
+          const datos = datosPorRuta.get(r.id)!
+          return {
+            id: r.id,
+            nombre: r.nombre,
+            codigo: r.codigo || '',
+            totalViajes: datos.viajes,
+            kmTotal: Math.round(datos.kmTotal),
+            combustible: Math.round(datos.combustible),
+            peajes: Math.round(datos.peajes),
+            total: Math.round(datos.total),
+            costoPorViaje: calcularCostoPorViaje(datos.total, datos.viajes),
+          }
+        })
+        .sort((a, b) => b.totalViajes - a.totalViajes)
+
+      return resultados
+    },
+    enabled: !!escenario?.id,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // Hook principal que combina todos los datos
 export function useEstadisticas(filters: EstadisticasFilters = {}) {
   const resumen = useEstadisticasResumen(filters)
@@ -570,6 +698,7 @@ export function useEstadisticas(filters: EstadisticasFilters = {}) {
   const contratistas = useEstadisticasContratistas(filters)
   const vehiculos = useEstadisticasVehiculos(filters)
   const costos = useEstadisticasCostos(filters)
+  const rutas = useEstadisticasRutas(filters)
 
   return {
     resumen,
@@ -577,11 +706,13 @@ export function useEstadisticas(filters: EstadisticasFilters = {}) {
     contratistas,
     vehiculos,
     costos,
+    rutas,
     isLoading:
       resumen.isLoading ||
       evolucion.isLoading ||
       contratistas.isLoading ||
       vehiculos.isLoading ||
-      costos.isLoading,
+      costos.isLoading ||
+      rutas.isLoading,
   }
 }

@@ -7,6 +7,7 @@ import {
   useEstadisticasContratistas,
   useEstadisticasVehiculos,
   useEstadisticasCostos,
+  useEstadisticasRutas,
   type EstadisticasFilters,
 } from '@/lib/hooks/use-estadisticas'
 import {
@@ -15,6 +16,7 @@ import {
   EvolucionChart,
   ContratistasRanking,
   VehiculosAnalysis,
+  RutasAnalysis,
   DesgloseCostosComponent,
 } from '@/components/estadisticas'
 
@@ -27,14 +29,15 @@ export default function EstadisticasPage() {
   const contratistas = useEstadisticasContratistas(filters)
   const vehiculos = useEstadisticasVehiculos(filters)
   const costos = useEstadisticasCostos(filters)
+  const rutas = useEstadisticasRutas(filters)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Estadisticas</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold">Estadisticas</h1>
+          <p className="text-sm text-muted-foreground">
             Analisis de liquidaciones y costos de terceros
           </p>
         </div>
@@ -63,11 +66,15 @@ export default function EstadisticasPage() {
         />
       </section>
 
-      {/* Seccion 3: Contratistas */}
-      <section>
+      {/* Seccion 3: Grid 2 columnas - Contratistas y Costos */}
+      <section className="grid gap-4 lg:grid-cols-2">
         <ContratistasRanking
           data={contratistas.data}
           isLoading={contratistas.isLoading}
+        />
+        <DesgloseCostosComponent
+          data={costos.data}
+          isLoading={costos.isLoading}
         />
       </section>
 
@@ -79,11 +86,11 @@ export default function EstadisticasPage() {
         />
       </section>
 
-      {/* Seccion 5: Desglose de costos */}
+      {/* Seccion 5: Rutas */}
       <section>
-        <DesgloseCostosComponent
-          data={costos.data}
-          isLoading={costos.isLoading}
+        <RutasAnalysis
+          data={rutas.data}
+          isLoading={rutas.isLoading}
         />
       </section>
     </div>

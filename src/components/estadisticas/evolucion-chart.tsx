@@ -29,11 +29,11 @@ interface EvolucionChartProps {
 function EvolucionChartSkeleton() {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Evolucion Temporal</CardTitle>
+      <CardHeader className="py-3">
+        <CardTitle className="text-base">Evolucion Temporal</CardTitle>
       </CardHeader>
-      <CardContent>
-        <Skeleton className="h-[350px] w-full" />
+      <CardContent className="pt-0">
+        <Skeleton className="h-[180px] w-full" />
       </CardContent>
     </Card>
   )
@@ -91,11 +91,11 @@ export function EvolucionChart({ data, isLoading }: EvolucionChartProps) {
   if (!data || data.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Evolucion Temporal</CardTitle>
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Evolucion Temporal</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[120px] flex items-center justify-center text-muted-foreground text-sm">
             No hay datos para mostrar
           </div>
         </CardContent>
@@ -105,37 +105,40 @@ export function EvolucionChart({ data, isLoading }: EvolucionChartProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Evolucion Temporal</CardTitle>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+      <CardHeader className="py-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base">Evolucion Temporal</CardTitle>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
             <Switch
               id="show-total"
               checked={showTotalPagado}
               onCheckedChange={setShowTotalPagado}
+              className="scale-75"
             />
             <Label htmlFor="show-total" className="text-xs">Total</Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Switch
               id="show-costo"
               checked={showCostoPorViaje}
               onCheckedChange={setShowCostoPorViaje}
+              className="scale-75"
             />
             <Label htmlFor="show-costo" className="text-xs">$/Viaje</Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Switch
               id="show-viajes"
               checked={showViajes}
               onCheckedChange={setShowViajes}
+              className="scale-75"
             />
             <Label htmlFor="show-viajes" className="text-xs">Viajes</Label>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+      <CardContent className="pt-0">
+        <ResponsiveContainer width="100%" height={180}>
           <ComposedChart data={data}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis

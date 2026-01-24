@@ -19,15 +19,14 @@ interface VehiculosAnalysisProps {
   isLoading: boolean
 }
 
-// Skeleton
 function VehiculosAnalysisSkeleton() {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Analisis por Vehiculo</CardTitle>
+      <CardHeader className="py-3">
+        <CardTitle className="text-base">Analisis por Vehiculo</CardTitle>
       </CardHeader>
-      <CardContent>
-        <Skeleton className="h-[400px] w-full" />
+      <CardContent className="pt-0">
+        <Skeleton className="h-[250px] w-full" />
       </CardContent>
     </Card>
   )
@@ -56,14 +55,14 @@ export function VehiculosAnalysis({ data, isLoading }: VehiculosAnalysisProps) {
   if (!data || data.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Analisis por Vehiculo</CardTitle>
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Analisis por Vehiculo</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground gap-2">
+        <CardContent className="pt-0">
+          <div className="h-[150px] flex flex-col items-center justify-center text-muted-foreground gap-1 text-sm">
             <span>No hay datos de vehiculos</span>
-            <span className="text-sm">
-              Los vehiculos aparecen aqui cuando tienen quincenas liquidadas o pagadas
+            <span className="text-xs">
+              Los vehiculos aparecen cuando tienen quincenas liquidadas
             </span>
           </div>
         </CardContent>
@@ -73,20 +72,25 @@ export function VehiculosAnalysis({ data, isLoading }: VehiculosAnalysisProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Analisis por Vehiculo</CardTitle>
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Analisis por Vehiculo</CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {data.length} vehiculos | Prom: {formatCOP(promedioCostoPorViaje)}
+          </span>
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="max-h-[450px] overflow-auto">
+      <CardContent className="pt-0">
+        <div className="max-h-[300px] overflow-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Placa</TableHead>
-                <TableHead>Contratista</TableHead>
-                <TableHead className="text-right">Viajes</TableHead>
-                <TableHead className="text-right">Total Pagado</TableHead>
-                <TableHead className="text-right">Costo/Viaje</TableHead>
-                <TableHead className="text-right">vs Promedio</TableHead>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="py-1.5 px-2 text-xs">Placa</TableHead>
+                <TableHead className="py-1.5 px-2 text-xs">Contratista</TableHead>
+                <TableHead className="py-1.5 px-2 text-xs text-right">Viajes</TableHead>
+                <TableHead className="py-1.5 px-2 text-xs text-right">Total</TableHead>
+                <TableHead className="py-1.5 px-2 text-xs text-right">$/Viaje</TableHead>
+                <TableHead className="py-1.5 px-2 text-xs text-right">vs Prom</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -97,13 +101,13 @@ export function VehiculosAnalysis({ data, isLoading }: VehiculosAnalysisProps) {
                   : 0
 
                 return (
-                  <TableRow key={v.id}>
-                    <TableCell className="font-mono font-medium">{v.placa}</TableCell>
-                    <TableCell>{v.contratistaNombre}</TableCell>
-                    <TableCell className="text-right">{v.totalViajes}</TableCell>
-                    <TableCell className="text-right">{formatCOP(v.totalPagado)}</TableCell>
-                    <TableCell className="text-right">{formatCOP(v.costoPorViaje)}</TableCell>
-                    <TableCell className="text-right">
+                  <TableRow key={v.id} className="hover:bg-muted/50">
+                    <TableCell className="py-1.5 px-2 text-sm font-mono font-medium">{v.placa}</TableCell>
+                    <TableCell className="py-1.5 px-2 text-sm">{v.contratistaNombre}</TableCell>
+                    <TableCell className="py-1.5 px-2 text-sm text-right">{v.totalViajes}</TableCell>
+                    <TableCell className="py-1.5 px-2 text-sm text-right">{formatCOP(v.totalPagado)}</TableCell>
+                    <TableCell className="py-1.5 px-2 text-sm text-right">{formatCOP(v.costoPorViaje)}</TableCell>
+                    <TableCell className="py-1.5 px-2 text-sm text-right">
                       <span className={
                         porcentajeDif > 10 ? 'text-red-600' :
                         porcentajeDif < -10 ? 'text-green-600' :
@@ -117,10 +121,6 @@ export function VehiculosAnalysis({ data, isLoading }: VehiculosAnalysisProps) {
               })}
             </TableBody>
           </Table>
-        </div>
-        <div className="mt-4 flex justify-between text-sm text-muted-foreground">
-          <span>{data.length} vehiculos activos</span>
-          <span>Promedio costo/viaje: {formatCOP(promedioCostoPorViaje)}</span>
         </div>
       </CardContent>
     </Card>
