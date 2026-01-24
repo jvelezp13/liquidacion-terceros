@@ -23,7 +23,7 @@ import {
   useDeleteDeduccion,
   tiposDeduccion,
 } from '@/lib/hooks/use-liquidaciones'
-import { useViajesPorLiquidacion } from '@/lib/hooks/use-viajes-por-liquidacion'
+import type { ViajesPorLiquidacion } from '@/lib/hooks/use-viajes-por-liquidacion'
 import { PopoverAjuste } from './popover-ajuste'
 import { PopoverDeduccion } from './popover-deduccion'
 
@@ -32,6 +32,7 @@ interface LiquidacionRowExpandibleProps {
   quincenaId: string
   esEditable?: boolean
   isLoading?: boolean
+  viajesData?: ViajesPorLiquidacion
 }
 
 export function LiquidacionRowExpandible({
@@ -39,17 +40,12 @@ export function LiquidacionRowExpandible({
   quincenaId,
   esEditable = true,
   isLoading = false,
+  viajesData,
 }: LiquidacionRowExpandibleProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   const updateEstadoMutation = useUpdateEstadoLiquidacion()
   const deleteDeduccionMutation = useDeleteDeduccion()
-
-  // Obtener desglose de viajes por ruta
-  const { data: viajesData, isLoading: loadingViajes } = useViajesPorLiquidacion(
-    isOpen ? quincenaId : undefined,
-    isOpen ? liquidacion.vehiculo_tercero_id : undefined
-  )
 
   const liq = liquidacion
   const vt = liq.vehiculo_tercero
@@ -199,11 +195,7 @@ export function LiquidacionRowExpandible({
                 <div className="rounded-lg border bg-background p-3">
                   <h4 className="font-medium text-sm mb-3">Desglose por Ruta</h4>
 
-                  {loadingViajes ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : viajesData && viajesData.desgloseRutas.length > 0 ? (
+                  {viajesData && viajesData.desgloseRutas.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>

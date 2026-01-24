@@ -10,6 +10,7 @@ import {
 import { Truck } from 'lucide-react'
 import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
+import type { ViajesQuincenaMap } from '@/lib/hooks/use-viajes-por-liquidacion'
 import { LiquidacionRowExpandible } from './liquidacion-row-expandible'
 
 interface LiquidacionesTableProps {
@@ -17,6 +18,7 @@ interface LiquidacionesTableProps {
   quincenaId: string
   isLoading?: boolean
   esEditable?: boolean
+  viajesMap?: ViajesQuincenaMap
 }
 
 export function LiquidacionesTable({
@@ -24,6 +26,7 @@ export function LiquidacionesTable({
   quincenaId,
   isLoading = false,
   esEditable = true,
+  viajesMap,
 }: LiquidacionesTableProps) {
   if (liquidaciones.length === 0) {
     return (
@@ -69,6 +72,7 @@ export function LiquidacionesTable({
                 quincenaId={quincenaId}
                 esEditable={esEditable}
                 isLoading={isLoading}
+                viajesData={viajesMap?.get(liq.vehiculo_tercero_id)}
               />
             ))}
           </TableBody>

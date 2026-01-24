@@ -30,6 +30,7 @@ import {
   useLiquidacionesQuincena,
   useGenerarLiquidaciones,
 } from '@/lib/hooks/use-liquidaciones'
+import { useViajesQuincenaCompleta } from '@/lib/hooks/use-viajes-por-liquidacion'
 import { LiquidacionesTable } from '@/components/liquidacion'
 import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 
@@ -74,6 +75,8 @@ export default function LiquidacionDetallePage() {
 
   const { data: quincena, isLoading: loadingQuincena } = useQuincena(quincenaId)
   const { data: liquidaciones, isLoading: loadingLiquidaciones } = useLiquidacionesQuincena(quincenaId)
+  // Cargar todos los viajes de la quincena de una vez (2 queries total)
+  const { data: viajesMap } = useViajesQuincenaCompleta(quincenaId)
 
   const generarMutation = useGenerarLiquidaciones()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
@@ -224,6 +227,7 @@ export default function LiquidacionDetallePage() {
             quincenaId={quincenaId}
             isLoading={generarMutation.isPending}
             esEditable={esEditable}
+            viajesMap={viajesMap}
           />
         </CardContent>
       </Card>
