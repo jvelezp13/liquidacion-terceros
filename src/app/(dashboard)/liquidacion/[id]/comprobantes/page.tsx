@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ import {
   agruparPorContratista,
   descargarHTML,
   imprimirHTML,
+  descargarComprobantesZIP,
   type ConsolidadoContratista,
 } from '@/lib/utils/generar-comprobante'
 
@@ -46,7 +47,11 @@ export default function ComprobantesPage() {
   const { data: liquidaciones, isLoading: loadingLiquidaciones } = useLiquidacionesQuincena(quincenaId)
   const { data: viajesMap } = useViajesQuincenaCompleta(quincenaId)
 
-  const consolidados = liquidaciones ? agruparPorContratista(liquidaciones) : []
+  // Memo para evitar recalcular en cada render
+  const consolidados = useMemo(
+    () => (liquidaciones ? agruparPorContratista(liquidaciones) : []),
+    [liquidaciones]
+  )
 
   // Helper para obtener viajes de una liquidacion
   const getViajesLiquidacion = (liquidacion: LiquidacionConDeducciones) => {
@@ -84,16 +89,23 @@ export default function ComprobantesPage() {
     imprimirHTML(html)
   }
 
-  const handleDescargarTodos = () => {
+  const handleDescargarTodos = async () => {
     if (!quincena || !liquidaciones) return
-    // Descargar cada comprobante individual con sus datos de viajes
-    for (const liq of liquidaciones) {
+
+    // Generar todos los comprobantes
+    const archivos = liquidaciones.map((liq) => {
       const viajesData = getViajesLiquidacion(liq)
       const html = generarComprobanteHTML(liq, quincena, viajesData)
       const placa = liq.vehiculo_tercero?.placa || 'sin-placa'
-      const nombreArchivo = `comprobante-${placa}-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.html`
-      descargarHTML(html, nombreArchivo)
-    }
+      return {
+        nombre: `comprobante-${placa}.html`,
+        contenido: html,
+      }
+    })
+
+    // Descargar como ZIP (1 archivo en lugar de N)
+    const nombreZip = `comprobantes-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.zip`
+    await descargarComprobantesZIP(archivos, nombreZip)
   }
 
   if (loadingQuincena || loadingLiquidaciones) {

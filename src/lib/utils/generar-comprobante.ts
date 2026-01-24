@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
 import type { ViajesPorLiquidacion, DesgloseRuta } from '@/lib/hooks/use-viajes-por-liquidacion'
 import type { LiqQuincena, LiqContratista } from '@/types'
@@ -656,4 +657,30 @@ export function imprimirHTML(html: string) {
     ventana.focus()
     ventana.print()
   }
+}
+
+// Descargar multiples comprobantes como ZIP (mejor UX que N descargas)
+export async function descargarComprobantesZIP(
+  archivos: { nombre: string; contenido: string }[],
+  nombreZip: string
+): Promise<void> {
+  const zip = new JSZip()
+
+  // Agregar cada archivo HTML al ZIP
+  for (const archivo of archivos) {
+    zip.file(archivo.nombre, archivo.contenido)
+  }
+
+  // Generar el ZIP
+  const blob = await zip.generateAsync({ type: 'blob' })
+
+  // Descargar
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombreZip
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
