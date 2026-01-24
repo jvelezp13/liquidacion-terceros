@@ -93,16 +93,29 @@ export default function PagosPage() {
   const handleMarcarPagada = () => {
     if (!selectedQuincena) return
 
-    marcarPagadaMutation.mutate(selectedQuincena.id, {
-      onSuccess: () => {
-        toast.success('Quincena marcada como pagada')
-        setShowConfirmarPagadaDialog(false)
-        setSelectedQuincena(null)
+    // Preparar datos de pagos desde consolidados
+    const pagos = consolidados.map((c) => ({
+      contratista_id: c.contratista.id,
+      monto_total: c.totalAPagar,
+    }))
+
+    marcarPagadaMutation.mutate(
+      {
+        quincenaId: selectedQuincena.id,
+        pagos,
+        metodoPago: 'Transferencia',
       },
-      onError: (error) => {
-        toast.error('Error: ' + error.message)
-      },
-    })
+      {
+        onSuccess: () => {
+          toast.success('Quincena marcada como pagada')
+          setShowConfirmarPagadaDialog(false)
+          setSelectedQuincena(null)
+        },
+        onError: (error) => {
+          toast.error('Error: ' + error.message)
+        },
+      }
+    )
   }
 
   if (loadingQuincenas) {

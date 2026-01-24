@@ -190,23 +190,37 @@ export function useDeletePago() {
   })
 }
 
-// Hook para marcar quincena como pagada
+// Tipo para pagos por contratista al marcar quincena como pagada
+export interface PagoContratista {
+  contratista_id: string
+  monto_total: number
+}
+
+// Hook para marcar quincena como pagada (con registro automatico de pagos)
+// Usa funcion RPC para garantizar atomicidad (transaccion en PostgreSQL)
 export function useMarcarQuincenaPagada() {
   const supabase = createClient()
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (quincenaId: string): Promise<LiqQuincena> => {
+    mutationFn: async ({
+      quincenaId,
+      pagos,
+      metodoPago,
+    }: {
+      quincenaId: string
+      pagos: PagoContratista[]
+      metodoPago?: string
+    }): Promise<LiqQuincena> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('liq_quincenas')
-        .update({
-          estado: 'pagado',
-          fecha_pago: new Date().toISOString(),
-        })
-        .eq('id', quincenaId)
-        .select()
-        .single()
+      const sb = supabase as any
+
+      // Llamar funcion RPC que ejecuta todo en una transaccion atomica
+      const { data, error } = await sb.rpc('marcar_quincena_pagada', {
+        p_quincena_id: quincenaId,
+        p_pagos: pagos,
+        p_metodo_pago: metodoPago || 'Transferencia',
+      })
 
       if (error) throw error
       return data as LiqQuincena
@@ -214,6 +228,8 @@ export function useMarcarQuincenaPagada() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['quincenas'] })
       queryClient.invalidateQueries({ queryKey: ['quincena', data.id] })
+      queryClient.invalidateQueries({ queryKey: ['historial-pagos'] })
+      queryClient.invalidateQueries({ queryKey: ['pagos-quincena', data.id] })
     },
   })
 }
