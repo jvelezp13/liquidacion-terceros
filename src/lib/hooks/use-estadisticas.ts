@@ -163,50 +163,55 @@ export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
       if (quincenasError) throw quincenasError
       if (!quincenas || quincenas.length === 0) return []
 
-      // Para cada quincena, obtener datos
-      const resultados: DatosEvolucion[] = []
+      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
 
-      for (const q of quincenas as { id: string; año: number; mes: number; quincena: number }[]) {
-        // Pagos de la quincena
-        const { data: pagos } = await sb
-          .from('liq_historial_pagos')
-          .select('monto_total')
-          .eq('quincena_id', q.id)
+      // Batch query: todos los pagos de todas las quincenas
+      const { data: todosPagos } = await sb
+        .from('liq_historial_pagos')
+        .select('quincena_id, monto_total')
+        .in('quincena_id', quincenaIds)
 
-        const totalPagado = (pagos || []).reduce(
-          (sum: number, p: { monto_total: number }) => sum + (p.monto_total || 0),
-          0
-        )
+      // Batch query: todos los viajes de todas las quincenas
+      const { data: todosViajes } = await sb
+        .from('liq_viajes_ejecutados')
+        .select('quincena_id, estado')
+        .in('quincena_id', quincenaIds)
 
-        // Viajes de la quincena
-        const { data: viajes } = await sb
-          .from('liq_viajes_ejecutados')
-          .select('estado')
-          .eq('quincena_id', q.id)
+      // Agrupar pagos por quincena
+      const pagosPorQuincena = new Map<string, number>()
+      for (const p of (todosPagos || []) as { quincena_id: string; monto_total: number }[]) {
+        const actual = pagosPorQuincena.get(p.quincena_id) || 0
+        pagosPorQuincena.set(p.quincena_id, actual + (p.monto_total || 0))
+      }
 
-        const viajesEjecutados = (viajes || []).filter(
-          (v: { estado: string }) => v.estado === 'ejecutado'
-        ).length
-        const viajesVariacion = (viajes || []).filter(
-          (v: { estado: string }) => v.estado === 'variacion'
-        ).length
-        const viajesNoEjecutados = (viajes || []).filter(
-          (v: { estado: string }) => v.estado === 'no_ejecutado'
-        ).length
+      // Agrupar viajes por quincena
+      const viajesPorQuincena = new Map<string, { ejecutados: number; variacion: number; noEjecutados: number }>()
+      for (const v of (todosViajes || []) as { quincena_id: string; estado: string }[]) {
+        const actual = viajesPorQuincena.get(v.quincena_id) || { ejecutados: 0, variacion: 0, noEjecutados: 0 }
+        if (v.estado === 'ejecutado') actual.ejecutados++
+        else if (v.estado === 'variacion') actual.variacion++
+        else if (v.estado === 'no_ejecutado') actual.noEjecutados++
+        viajesPorQuincena.set(v.quincena_id, actual)
+      }
 
-        resultados.push({
+      // Construir resultados
+      const resultados: DatosEvolucion[] = (quincenas as { id: string; año: number; mes: number; quincena: number }[]).map((q) => {
+        const totalPagado = pagosPorQuincena.get(q.id) || 0
+        const viajes = viajesPorQuincena.get(q.id) || { ejecutados: 0, variacion: 0, noEjecutados: 0 }
+
+        return {
           quincenaLabel: generarQuincenaLabel(q.año, q.mes, q.quincena),
           quincenaId: q.id,
           año: q.año,
           mes: q.mes,
           quincena: q.quincena,
           totalPagado,
-          viajesEjecutados,
-          viajesNoEjecutados,
-          viajesVariacion,
-          costoPorViaje: calcularCostoPorViaje(totalPagado, viajesEjecutados + viajesVariacion),
-        })
-      }
+          viajesEjecutados: viajes.ejecutados,
+          viajesNoEjecutados: viajes.noEjecutados,
+          viajesVariacion: viajes.variacion,
+          costoPorViaje: calcularCostoPorViaje(totalPagado, viajes.ejecutados + viajes.variacion),
+        }
+      })
 
       return resultados
     },
@@ -251,62 +256,70 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
       if (contratistasError) throw contratistasError
       if (!contratistas) return []
 
-      // Para cada contratista, calcular metricas
-      const resultados: DatosContratista[] = []
+      const contratistasList = contratistas as { id: string; nombre: string; vehiculos_terceros: { id: string }[] }[]
+      const contratistaIds = contratistasList.map(c => c.id)
 
-      for (const c of contratistas as { id: string; nombre: string; vehiculos_terceros: { id: string }[] }[]) {
-        // Pagos del contratista
-        const { data: pagos } = await sb
-          .from('liq_historial_pagos')
-          .select('monto_total')
-          .eq('contratista_id', c.id)
-          .in('quincena_id', quincenaIds)
+      // Batch query: todos los pagos de todos los contratistas
+      const { data: todosPagos } = await sb
+        .from('liq_historial_pagos')
+        .select('contratista_id, monto_total')
+        .in('contratista_id', contratistaIds)
+        .in('quincena_id', quincenaIds)
 
-        const totalPagado = (pagos || []).reduce(
-          (sum: number, p: { monto_total: number }) => sum + (p.monto_total || 0),
-          0
-        )
+      // Agrupar pagos por contratista
+      const pagosPorContratista = new Map<string, number>()
+      for (const p of (todosPagos || []) as { contratista_id: string; monto_total: number }[]) {
+        const actual = pagosPorContratista.get(p.contratista_id) || 0
+        pagosPorContratista.set(p.contratista_id, actual + (p.monto_total || 0))
+      }
 
-        // Viajes de los vehiculos del contratista
-        const vtIds = (c.vehiculos_terceros || []).map((vt) => vt.id)
-
-        if (vtIds.length === 0) {
-          resultados.push({
-            id: c.id,
-            nombre: c.nombre,
-            totalVehiculos: 0,
-            totalViajes: 0,
-            totalPagado,
-            costoPorViaje: 0,
-            tasaCumplimiento: 0,
-          })
-          continue
+      // Obtener todos los vehiculo_tercero_ids y mapear a contratistas
+      const vtIdToContratista = new Map<string, string>()
+      const allVtIds: string[] = []
+      for (const c of contratistasList) {
+        for (const vt of (c.vehiculos_terceros || [])) {
+          vtIdToContratista.set(vt.id, c.id)
+          allVtIds.push(vt.id)
         }
+      }
 
-        const { data: viajes } = await sb
+      // Batch query: todos los viajes de todos los vehiculos
+      let viajesPorContratista = new Map<string, { total: number; ejecutados: number; variacion: number }>()
+      if (allVtIds.length > 0) {
+        const { data: todosViajes } = await sb
           .from('liq_viajes_ejecutados')
-          .select('estado')
-          .in('vehiculo_tercero_id', vtIds)
+          .select('vehiculo_tercero_id, estado')
+          .in('vehiculo_tercero_id', allVtIds)
           .in('quincena_id', quincenaIds)
 
-        const totalViajes = viajes?.length || 0
-        const viajesEjecutados = (viajes || []).filter(
-          (v: { estado: string }) => v.estado === 'ejecutado'
-        ).length
-        const viajesVariacion = (viajes || []).filter(
-          (v: { estado: string }) => v.estado === 'variacion'
-        ).length
+        // Agrupar viajes por contratista
+        for (const v of (todosViajes || []) as { vehiculo_tercero_id: string; estado: string }[]) {
+          const contratistaId = vtIdToContratista.get(v.vehiculo_tercero_id)
+          if (!contratistaId) continue
 
-        resultados.push({
+          const actual = viajesPorContratista.get(contratistaId) || { total: 0, ejecutados: 0, variacion: 0 }
+          actual.total++
+          if (v.estado === 'ejecutado') actual.ejecutados++
+          else if (v.estado === 'variacion') actual.variacion++
+          viajesPorContratista.set(contratistaId, actual)
+        }
+      }
+
+      // Construir resultados
+      const resultados: DatosContratista[] = contratistasList.map(c => {
+        const totalPagado = pagosPorContratista.get(c.id) || 0
+        const viajes = viajesPorContratista.get(c.id) || { total: 0, ejecutados: 0, variacion: 0 }
+
+        return {
           id: c.id,
           nombre: c.nombre,
           totalVehiculos: c.vehiculos_terceros?.length || 0,
-          totalViajes,
+          totalViajes: viajes.total,
           totalPagado,
-          costoPorViaje: calcularCostoPorViaje(totalPagado, viajesEjecutados + viajesVariacion),
-          tasaCumplimiento: calcularTasaCumplimiento(viajesEjecutados, viajesVariacion, totalViajes),
-        })
-      }
+          costoPorViaje: calcularCostoPorViaje(totalPagado, viajes.ejecutados + viajes.variacion),
+          tasaCumplimiento: calcularTasaCumplimiento(viajes.ejecutados, viajes.variacion, viajes.total),
+        }
+      })
 
       // Solo retornar contratistas con actividad
       return resultados.filter(c => c.totalViajes > 0 || c.totalPagado > 0)
@@ -329,7 +342,7 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas
+      // Obtener quincenas liquidadas/pagadas
       const { data: quincenas } = await sb
         .from('liq_quincenas')
         .select('id')
@@ -345,6 +358,7 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
         .from('liq_vehiculos_terceros')
         .select(`
           id,
+          contratista_id,
           vehiculo:vehiculos(placa),
           contratista:liq_contratistas(id, nombre)
         `)
@@ -358,36 +372,68 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       if (vehiculosError) throw vehiculosError
       if (!vehiculos) return []
 
-      // Para cada vehiculo, calcular metricas
-      const resultados: DatosVehiculo[] = []
+      const vehiculosList = vehiculos as {
+        id: string
+        contratista_id: string
+        vehiculo: { placa: string } | null
+        contratista: { id: string; nombre: string }
+      }[]
+      const vehiculoIds = vehiculosList.map(v => v.id)
 
-      for (const v of vehiculos as { id: string; vehiculo: { placa: string } | null; contratista: { id: string; nombre: string } }[]) {
-        // Liquidaciones del vehiculo
-        const { data: liquidaciones } = await sb
-          .from('liq_liquidaciones')
-          .select('total_a_pagar')
-          .eq('vehiculo_tercero_id', v.id)
-          .in('quincena_id', quincenaIds)
-          .eq('estado', 'aprobado')
+      // Obtener IDs de contratistas unicos
+      const contratistaIds = [...new Set(vehiculosList.map(v => v.contratista_id))]
 
-        const totalPagado = (liquidaciones || []).reduce(
-          (sum: number, l: { total_a_pagar: number }) => sum + (l.total_a_pagar || 0),
-          0
-        )
+      // Batch query: pagos por contratista (misma fuente que useEstadisticasContratistas)
+      const { data: todosPagos } = await sb
+        .from('liq_historial_pagos')
+        .select('contratista_id, monto_total')
+        .in('contratista_id', contratistaIds)
+        .in('quincena_id', quincenaIds)
 
-        // Viajes del vehiculo
-        const { data: viajes } = await sb
-          .from('liq_viajes_ejecutados')
-          .select('estado')
-          .eq('vehiculo_tercero_id', v.id)
-          .in('quincena_id', quincenaIds)
+      // Agrupar pagos por contratista
+      const pagosPorContratista = new Map<string, number>()
+      for (const p of (todosPagos || []) as { contratista_id: string; monto_total: number }[]) {
+        const actual = pagosPorContratista.get(p.contratista_id) || 0
+        pagosPorContratista.set(p.contratista_id, actual + (p.monto_total || 0))
+      }
 
-        const totalViajes = (viajes || []).filter(
-          (vj: { estado: string }) => vj.estado === 'ejecutado' || vj.estado === 'variacion'
-        ).length
+      // Batch query: todos los viajes de todos los vehiculos
+      const { data: todosViajes } = await sb
+        .from('liq_viajes_ejecutados')
+        .select('vehiculo_tercero_id, estado')
+        .in('vehiculo_tercero_id', vehiculoIds)
+        .in('quincena_id', quincenaIds)
 
-        if (totalViajes > 0 || totalPagado > 0) {
-          resultados.push({
+      // Agrupar viajes por vehiculo (solo ejecutados y variacion)
+      const viajesPorVehiculo = new Map<string, number>()
+      for (const v of (todosViajes || []) as { vehiculo_tercero_id: string; estado: string }[]) {
+        if (v.estado === 'ejecutado' || v.estado === 'variacion') {
+          const actual = viajesPorVehiculo.get(v.vehiculo_tercero_id) || 0
+          viajesPorVehiculo.set(v.vehiculo_tercero_id, actual + 1)
+        }
+      }
+
+      // Calcular viajes totales por contratista (para prorrateo)
+      const viajesTotalesPorContratista = new Map<string, number>()
+      for (const v of vehiculosList) {
+        const viajes = viajesPorVehiculo.get(v.id) || 0
+        const actual = viajesTotalesPorContratista.get(v.contratista_id) || 0
+        viajesTotalesPorContratista.set(v.contratista_id, actual + viajes)
+      }
+
+      // Construir resultados con pago prorrateado
+      const resultados: DatosVehiculo[] = vehiculosList
+        .map(v => {
+          const totalViajes = viajesPorVehiculo.get(v.id) || 0
+          const pagoContratista = pagosPorContratista.get(v.contratista_id) || 0
+          const viajesTotalesContratista = viajesTotalesPorContratista.get(v.contratista_id) || 0
+
+          // Prorratear el pago del contratista entre sus vehiculos segun viajes
+          const totalPagado = viajesTotalesContratista > 0
+            ? Math.round((totalViajes / viajesTotalesContratista) * pagoContratista)
+            : 0
+
+          return {
             id: v.id,
             placa: v.vehiculo?.placa || 'N/A',
             contratistaId: v.contratista?.id || '',
@@ -395,9 +441,9 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
             totalViajes,
             totalPagado,
             costoPorViaje: calcularCostoPorViaje(totalPagado, totalViajes),
-          })
-        }
-      }
+          }
+        })
+        .filter(v => v.totalViajes > 0 || v.totalPagado > 0)
 
       return resultados
     },

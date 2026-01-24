@@ -60,8 +60,11 @@ export function VehiculosAnalysis({ data, isLoading }: VehiculosAnalysisProps) {
           <CardTitle>Analisis por Vehiculo</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-            No hay datos de vehiculos
+          <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <span>No hay datos de vehiculos</span>
+            <span className="text-sm">
+              Los vehiculos aparecen aqui cuando tienen quincenas liquidadas o pagadas
+            </span>
           </div>
         </CardContent>
       </Card>
