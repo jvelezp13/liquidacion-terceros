@@ -3,7 +3,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useEscenarioActivo } from './use-escenario-activo'
+import { sincronizarConSeguimiento } from '@/lib/utils/sincronizar-seguimiento'
 import type { LiqHistorialPago, LiqQuincena } from '@/types'
+import type { LiquidacionConDeducciones } from './use-liquidaciones'
 
 // Tipo extendido con quincena
 export interface HistorialPagoConQuincena extends LiqHistorialPago {
@@ -196,8 +198,18 @@ export interface PagoContratista {
   monto_total: number
 }
 
+// Tipo para parametros de marcar quincena pagada
+export interface MarcarQuincenaPagadaParams {
+  quincenaId: string
+  pagos: PagoContratista[]
+  metodoPago?: string
+  liquidaciones?: LiquidacionConDeducciones[]
+  quincena?: LiqQuincena
+}
+
 // Hook para marcar quincena como pagada (con registro automatico de pagos)
 // Usa funcion RPC para garantizar atomicidad (transaccion en PostgreSQL)
+// Ademas sincroniza con el seguimiento de PlaneacionLogi
 export function useMarcarQuincenaPagada() {
   const supabase = createClient()
   const queryClient = useQueryClient()
@@ -207,29 +219,42 @@ export function useMarcarQuincenaPagada() {
       quincenaId,
       pagos,
       metodoPago,
-    }: {
-      quincenaId: string
-      pagos: PagoContratista[]
-      metodoPago?: string
-    }): Promise<LiqQuincena> => {
+      liquidaciones,
+      quincena,
+    }: MarcarQuincenaPagadaParams): Promise<LiqQuincena & { sincronizacion?: { vehiculos: number; lejanias: number } }> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Llamar funcion RPC que ejecuta todo en una transaccion atomica
+      // 1. Llamar funcion RPC que ejecuta todo en una transaccion atomica
       const { data, error } = await sb.rpc('marcar_quincena_pagada', {
         p_quincena_id: quincenaId,
         p_pagos: pagos,
-        p_metodo_pago: metodoPago || 'Transferencia',
+        p_metodo_pago: metodoPago || 'transferencia',
       })
 
       if (error) throw error
-      return data as LiqQuincena
+
+      // 2. Sincronizar con seguimiento de PlaneacionLogi
+      let sincronizacion: { vehiculos: number; lejanias: number } | undefined
+      if (liquidaciones && quincena && liquidaciones.length > 0) {
+        const resultado = await sincronizarConSeguimiento(liquidaciones, quincena)
+        if (resultado.success) {
+          sincronizacion = {
+            vehiculos: resultado.vehiculos,
+            lejanias: resultado.lejanias,
+          }
+        }
+      }
+
+      return { ...(data as LiqQuincena), sincronizacion }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['quincenas'] })
       queryClient.invalidateQueries({ queryKey: ['quincena', data.id] })
       queryClient.invalidateQueries({ queryKey: ['historial-pagos'] })
       queryClient.invalidateQueries({ queryKey: ['pagos-quincena', data.id] })
+      // Invalidar tambien queries de ejecucion para reflejar cambios en PlaneacionLogi
+      queryClient.invalidateQueries({ queryKey: ['ejecucion-rubros'] })
     },
   })
 }

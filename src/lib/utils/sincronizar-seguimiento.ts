@@ -2,41 +2,103 @@ import { createClient } from '@/lib/supabase/client'
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
 import type { LiqQuincena } from '@/types'
 
-// Tipo para ejecución de rubros
-interface EjecucionRubro {
-  escenario_id: string
-  mes: number
-  tipo_rubro: string
-  item_id: string
-  item_tipo: string
-  valor_real: number
-  notas?: string
+// Tipo para resultado de sincronizacion
+interface ResultadoSincronizacion {
+  success: boolean
+  message: string
+  vehiculos: number
+  lejanias: number
+  omitidos: number
 }
 
-// Obtener el mes desde una quincena
+// Nombres de meses para el campo mes en ejecucion_rubros
+const NOMBRES_MESES = [
+  '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+]
+
+// Obtener el mes desde una quincena (retorna numero)
 export function getMesDesdeQuincena(quincena: LiqQuincena): number {
   return quincena.mes
 }
 
-// Sincronizar liquidación con seguimiento de PlaneacionLogi
+// Convertir numero de mes a nombre
+export function getMesNombre(mesNumero: number): string {
+  return NOMBRES_MESES[mesNumero] || 'enero'
+}
+
+// Verificar si una liquidacion ya fue sincronizada
+async function yaFueSincronizada(
+  sb: ReturnType<typeof createClient>,
+  liquidacionId: string
+): Promise<boolean> {
+  const { data } = await (sb as any)
+    .from('liq_sincronizacion_ejecucion')
+    .select('id')
+    .eq('liquidacion_id', liquidacionId)
+    .eq('sincronizado', true)
+    .single()
+
+  return !!data
+}
+
+// Registrar sincronizacion exitosa
+async function registrarSincronizacion(
+  sb: ReturnType<typeof createClient>,
+  params: {
+    liquidacionId: string
+    ejecucionRubroId: string | null
+    vehiculoId: string
+    escenarioId: string
+    mes: string
+    valorSincronizado: number
+  }
+): Promise<void> {
+  await (sb as any)
+    .from('liq_sincronizacion_ejecucion')
+    .insert({
+      liquidacion_id: params.liquidacionId,
+      ejecucion_rubro_id: params.ejecucionRubroId,
+      vehiculo_id: params.vehiculoId,
+      escenario_id: params.escenarioId,
+      mes: params.mes,
+      valor_sincronizado: params.valorSincronizado,
+      sincronizado: true,
+      fecha_sincronizacion: new Date().toISOString(),
+    })
+}
+
+// Sincronizar liquidacion con seguimiento de PlaneacionLogi
+// Separa fletes (por vehiculo) de lejanias (agregado)
+// Valida duplicados usando liq_sincronizacion_ejecucion
 export async function sincronizarConSeguimiento(
   liquidaciones: LiquidacionConDeducciones[],
   quincena: LiqQuincena
-): Promise<{ success: boolean; message: string; count: number }> {
+): Promise<ResultadoSincronizacion> {
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
-  const mes = getMesDesdeQuincena(quincena)
-  const sufijo = quincena.quincena === 1 ? '1ra' : '2da'
-  let count = 0
+  const mes = getMesNombre(getMesDesdeQuincena(quincena))
+  let vehiculosCount = 0
+  let omitidosCount = 0
+  let totalLejanias = 0
+  let escenarioIdGlobal: string | null = null
 
   try {
+    // 1. Sincronizar VEHICULOS (flete_base por cada vehiculo)
     for (const liq of liquidaciones) {
       const vehiculo = liq.vehiculo_tercero
       if (!vehiculo) continue
 
-      // Obtener el escenario_id del vehículo original
+      // Verificar si esta liquidacion ya fue sincronizada
+      const yaSincronizada = await yaFueSincronizada(sb, liq.id)
+      if (yaSincronizada) {
+        omitidosCount++
+        continue
+      }
+
+      // Obtener el escenario_id del vehiculo original
       const { data: vehiculoOriginal, error: vehiculoError } = await sb
         .from('vehiculos')
         .select('escenario_id')
@@ -46,8 +108,9 @@ export async function sincronizarConSeguimiento(
       if (vehiculoError || !vehiculoOriginal) continue
 
       const escenarioId = vehiculoOriginal.escenario_id
+      if (!escenarioIdGlobal) escenarioIdGlobal = escenarioId
 
-      // Verificar si ya existe un registro para este vehículo/mes
+      // Verificar si ya existe un registro para este vehiculo/mes
       const { data: existente } = await sb
         .from('ejecucion_rubros')
         .select('id, valor_real')
@@ -57,29 +120,28 @@ export async function sincronizarConSeguimiento(
         .eq('item_id', vehiculo.vehiculo_id)
         .single()
 
-      const notas = `Liquidacion ${sufijo} Q ${quincena.mes}/${quincena.año} - ${vehiculo.placa}`
+      const notas = `Flete Q${quincena.quincena} ${quincena.mes}/${quincena.año} - ${vehiculo.placa}`
+      let ejecucionRubroId: string | null = null
 
       if (existente) {
-        // Si es la primera quincena, reemplazar el valor
-        // Si es la segunda quincena, sumar al valor existente
-        let nuevoValor = liq.total_a_pagar
-        if (quincena.quincena === 2) {
-          // Sumar a lo existente (asumiendo que la primera quincena ya se registró)
-          nuevoValor = existente.valor_real + liq.total_a_pagar
-        }
+        // Siempre sumar al valor existente
+        const nuevoValor = existente.valor_real + liq.flete_base
 
         const { error: updateError } = await sb
           .from('ejecucion_rubros')
           .update({
             valor_real: nuevoValor,
-            notas: `${existente.valor_real > 0 ? 'Acumulado ' : ''}${notas}`,
+            notas: `Acum. ${notas}`,
           })
           .eq('id', existente.id)
 
-        if (!updateError) count++
+        if (!updateError) {
+          vehiculosCount++
+          ejecucionRubroId = existente.id
+        }
       } else {
         // Insertar nuevo registro
-        const { error: insertError } = await sb
+        const { data: inserted, error: insertError } = await sb
           .from('ejecucion_rubros')
           .insert({
             escenario_id: escenarioId,
@@ -87,29 +149,104 @@ export async function sincronizarConSeguimiento(
             tipo_rubro: 'vehiculos',
             item_id: vehiculo.vehiculo_id,
             item_tipo: 'vehiculo',
-            valor_real: liq.total_a_pagar,
+            valor_real: liq.flete_base,
             notas,
           })
+          .select('id')
+          .single()
 
-        if (!insertError) count++
+        if (!insertError && inserted) {
+          vehiculosCount++
+          ejecucionRubroId = inserted.id
+        }
+      }
+
+      // Registrar sincronizacion para evitar duplicados futuros
+      if ((ejecucionRubroId || existente) && vehiculo.vehiculo_id) {
+        await registrarSincronizacion(sb, {
+          liquidacionId: liq.id,
+          ejecucionRubroId: ejecucionRubroId || existente?.id || null,
+          vehiculoId: vehiculo.vehiculo_id,
+          escenarioId,
+          mes,
+          valorSincronizado: liq.flete_base,
+        })
+      }
+
+      // Acumular lejanias de esta liquidacion
+      totalLejanias +=
+        liq.total_combustible +
+        liq.total_peajes +
+        liq.total_pernocta +
+        liq.total_fletes_adicionales
+    }
+
+    // 2. Sincronizar LEJANIAS LOGISTICAS (agregado)
+    let lejaniasCount = 0
+    if (totalLejanias > 0 && escenarioIdGlobal) {
+      // Verificar si ya existe registro de lejanias para este mes
+      const { data: existenteLejanias } = await sb
+        .from('ejecucion_rubros')
+        .select('id, valor_real')
+        .eq('escenario_id', escenarioIdGlobal)
+        .eq('mes', mes)
+        .eq('tipo_rubro', 'lejanias_logisticas')
+        .is('item_id', null)
+        .single()
+
+      const notasLejanias = `Lejanias terceros Q${quincena.quincena} ${quincena.mes}/${quincena.año}`
+
+      if (existenteLejanias) {
+        // Siempre sumar al valor existente
+        const nuevoValor = existenteLejanias.valor_real + totalLejanias
+
+        const { error: updateError } = await sb
+          .from('ejecucion_rubros')
+          .update({
+            valor_real: nuevoValor,
+            notas: `Acum. ${notasLejanias}`,
+          })
+          .eq('id', existenteLejanias.id)
+
+        if (!updateError) lejaniasCount = 1
+      } else {
+        // Insertar nuevo registro agregado
+        const { error: insertError } = await sb
+          .from('ejecucion_rubros')
+          .insert({
+            escenario_id: escenarioIdGlobal,
+            mes,
+            tipo_rubro: 'lejanias_logisticas',
+            item_id: null,
+            item_tipo: null,
+            valor_real: totalLejanias,
+            notas: notasLejanias,
+          })
+
+        if (!insertError) lejaniasCount = 1
       }
     }
 
+    const omitidosMsg = omitidosCount > 0 ? ` (${omitidosCount} ya sincronizados)` : ''
     return {
       success: true,
-      message: `Sincronizados ${count} registros con seguimiento`,
-      count,
+      message: `Sincronizados ${vehiculosCount} vehiculos y ${lejaniasCount > 0 ? 'lejanias' : 'sin lejanias'}${omitidosMsg}`,
+      vehiculos: vehiculosCount,
+      lejanias: lejaniasCount,
+      omitidos: omitidosCount,
     }
   } catch (error) {
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Error desconocido',
-      count: 0,
+      vehiculos: 0,
+      lejanias: 0,
+      omitidos: 0,
     }
   }
 }
 
-// Verificar estado de sincronización
+// Verificar estado de sincronizacion
 export async function verificarSincronizacion(
   liquidaciones: LiquidacionConDeducciones[],
   quincena: LiqQuincena
@@ -118,13 +255,20 @@ export async function verificarSincronizacion(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
-  const mes = getMesDesdeQuincena(quincena)
+  const mes = getMesNombre(getMesDesdeQuincena(quincena))
   let sincronizados = 0
   let pendientes = 0
 
   for (const liq of liquidaciones) {
     const vehiculo = liq.vehiculo_tercero
     if (!vehiculo) continue
+
+    // Verificar en tabla de sincronizacion
+    const yaSincronizada = await yaFueSincronizada(sb, liq.id)
+    if (yaSincronizada) {
+      sincronizados++
+      continue
+    }
 
     const { data: vehiculoOriginal } = await sb
       .from('vehiculos')
@@ -156,7 +300,7 @@ export async function verificarSincronizacion(
   return { sincronizados, pendientes }
 }
 
-// Hook para sincronización
+// Hook para sincronizacion
 export function useSincronizarSeguimiento() {
   const sincronizar = async (
     liquidaciones: LiquidacionConDeducciones[],

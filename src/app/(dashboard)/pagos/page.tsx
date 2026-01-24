@@ -103,11 +103,16 @@ export default function PagosPage() {
       {
         quincenaId: selectedQuincena.id,
         pagos,
-        metodoPago: 'Transferencia',
+        metodoPago: 'transferencia',
+        liquidaciones: liquidaciones || undefined,
+        quincena: selectedQuincena,
       },
       {
-        onSuccess: () => {
-          toast.success('Quincena marcada como pagada')
+        onSuccess: (data) => {
+          const sincMsg = data.sincronizacion
+            ? ` (${data.sincronizacion.vehiculos} vehiculos, ${data.sincronizacion.lejanias} lejanias sincronizados)`
+            : ''
+          toast.success(`Quincena marcada como pagada${sincMsg}`)
           setShowConfirmarPagadaDialog(false)
           setSelectedQuincena(null)
         },
