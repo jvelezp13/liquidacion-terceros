@@ -23,10 +23,16 @@ export function useRutasLogisticasVehiculo(vehiculoId: string | undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener rutas del vehículo
+      // Obtener rutas del vehículo con municipios en una sola query usando joins
       const { data: rutas, error: rutasError } = await sb
         .from('rutas_logisticas')
-        .select('*')
+        .select(`
+          *,
+          ruta_municipios:ruta_municipios(
+            *,
+            municipio:municipios(*)
+          )
+        `)
         .eq('vehiculo_id', vehiculoId)
         .eq('escenario_id', escenario.id)
         .eq('activo', true)
@@ -35,45 +41,21 @@ export function useRutasLogisticasVehiculo(vehiculoId: string | undefined) {
       if (rutasError) throw rutasError
       if (!rutas || rutas.length === 0) return []
 
-      // Obtener municipios de cada ruta
-      const rutasConMunicipios = await Promise.all(
-        (rutas as RutaLogistica[]).map(async (ruta) => {
-          const { data: rutaMunicipios } = await sb
-            .from('ruta_municipios')
-            .select('*')
-            .eq('ruta_id', ruta.id)
-            .order('orden_visita')
+      // Mapear resultados al tipo esperado
+      type RutaConJoins = RutaLogistica & {
+        ruta_municipios: (RutaMunicipio & { municipio: Municipio })[]
+      }
 
-          if (!rutaMunicipios || rutaMunicipios.length === 0) {
-            return { ...ruta, municipios: [] }
-          }
-
-          // Obtener detalles de cada municipio
-          const municipiosConDetalles = await Promise.all(
-            (rutaMunicipios as RutaMunicipio[]).map(async (rm) => {
-              const { data: municipio } = await sb
-                .from('municipios')
-                .select('*')
-                .eq('id', rm.municipio_id)
-                .single()
-
-              return {
-                ...rm,
-                municipio: municipio as Municipio,
-              }
-            })
-          )
-
-          return {
-            ...ruta,
-            municipios: municipiosConDetalles,
-          }
-        })
-      )
+      const rutasConMunicipios = (rutas as RutaConJoins[]).map((ruta) => ({
+        ...ruta,
+        municipios: (ruta.ruta_municipios || [])
+          .sort((a, b) => (a.orden_visita || 0) - (b.orden_visita || 0)),
+      }))
 
       return rutasConMunicipios
     },
     enabled: !!vehiculoId && !!escenario?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 
@@ -99,5 +81,6 @@ export function useRutasLogisticas() {
       return (data || []) as RutaLogistica[]
     },
     enabled: !!escenario?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }

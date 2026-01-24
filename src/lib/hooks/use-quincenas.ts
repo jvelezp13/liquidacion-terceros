@@ -38,6 +38,7 @@ export function useQuincenas() {
       return (data || []) as LiqQuincena[]
     },
     enabled: !!escenario?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 

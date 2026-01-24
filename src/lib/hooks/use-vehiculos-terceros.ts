@@ -47,10 +47,10 @@ export function useVehiculosTercerosSinVincular() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener vehículos con esquema 'tercero'
+      // Obtener vehículos con esquema 'tercero' y sus costos en una sola query
       const { data: vehiculos, error: vehiculosError } = await sb
         .from('vehiculos')
-        .select('*')
+        .select('*, costos:vehiculos_costos(*)')
         .eq('escenario_id', escenario.id)
         .eq('esquema', 'tercero')
         .eq('activo', true)
@@ -67,25 +67,19 @@ export function useVehiculosTercerosSinVincular() {
 
       const vinculadosIds = new Set((vinculados || []).map((v: { vehiculo_id: string }) => v.vehiculo_id))
 
-      // Filtrar solo los no vinculados
-      const sinVincular = ((vehiculos || []) as Vehiculo[]).filter((v) => !vinculadosIds.has(v.id))
-
-      // Obtener costos de cada vehículo
-      const result = await Promise.all(
-        sinVincular.map(async (vehiculo) => {
-          const { data: costos } = await sb
-            .from('vehiculos_costos')
-            .select('*')
-            .eq('vehiculo_id', vehiculo.id)
-            .single()
-
-          return { ...vehiculo, costos: (costos || null) as VehiculoCostos | null }
-        })
-      )
+      // Filtrar solo los no vinculados y mapear costos
+      type VehiculoConCostos = Vehiculo & { costos: VehiculoCostos[] | null }
+      const result = ((vehiculos || []) as VehiculoConCostos[])
+        .filter((v) => !vinculadosIds.has(v.id))
+        .map((v) => ({
+          ...v,
+          costos: (v.costos?.[0] || null) as VehiculoCostos | null,
+        }))
 
       return result
     },
     enabled: !!escenario?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 
@@ -102,66 +96,47 @@ export function useVehiculosTerceros() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener vehículos terceros vinculados
+      // Obtener vehículos terceros con todos los detalles en una sola query usando joins
       const { data: vinculados, error: vinculadosError } = await sb
         .from('liq_vehiculos_terceros')
-        .select('*')
+        .select(`
+          *,
+          contratista:liq_contratistas(*),
+          vehiculo:vehiculos(*, costos:vehiculos_costos(*))
+        `)
         .eq('activo', true)
 
       if (vinculadosError) throw vinculadosError
 
       if (!vinculados || vinculados.length === 0) return []
 
-      // Obtener detalles de cada vehículo
-      const result = await Promise.all(
-        (vinculados as LiqVehiculoTercero[]).map(async (vt) => {
-          // Obtener contratista (siempre requerido)
-          const { data: contratista } = await sb
-            .from('liq_contratistas')
-            .select('*')
-            .eq('id', vt.contratista_id)
-            .single()
+      // Mapear resultados al tipo esperado
+      type VinculadoConJoins = LiqVehiculoTercero & {
+        contratista: LiqContratista | null
+        vehiculo: (Vehiculo & { costos: VehiculoCostos[] | null }) | null
+      }
 
-          if (!contratista) return null
-
-          // Para vehículos normales: obtener datos de PlaneacionLogi
-          let vehiculo = null
-          let costos = null
-
-          if (vt.vehiculo_id) {
-            const { data: vehiculoData } = await sb
-              .from('vehiculos')
-              .select('*')
-              .eq('id', vt.vehiculo_id)
-              .eq('escenario_id', escenario.id)
-              .single()
-
-            vehiculo = vehiculoData
-
-            // Solo buscar costos si encontramos el vehículo
-            if (vehiculo) {
-              const { data: costosData } = await sb
-                .from('vehiculos_costos')
-                .select('*')
-                .eq('vehiculo_id', vt.vehiculo_id)
-                .single()
-
-              costos = costosData
-            }
+      const result = (vinculados as VinculadoConJoins[])
+        .filter((vt) => vt.contratista !== null)
+        .filter((vt) => {
+          // Para vehículos normales, verificar que pertenezcan al escenario
+          if (vt.vehiculo_id && vt.vehiculo) {
+            return vt.vehiculo.escenario_id === escenario.id
           }
-
-          return {
-            ...vt,
-            vehiculo: vehiculo as Vehiculo | null,
-            contratista: contratista as LiqContratista,
-            vehiculo_costos: (costos || null) as VehiculoCostos | null,
-          } as LiqVehiculoTerceroConDetalles
+          // Vehículos esporádicos (sin vehiculo_id) siempre pasan
+          return true
         })
-      )
+        .map((vt) => ({
+          ...vt,
+          vehiculo: vt.vehiculo as Vehiculo | null,
+          contratista: vt.contratista as LiqContratista,
+          vehiculo_costos: (vt.vehiculo?.costos?.[0] || null) as VehiculoCostos | null,
+        }))
 
-      return result.filter((v): v is LiqVehiculoTerceroConDetalles => v !== null)
+      return result
     },
     enabled: !!escenario?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 
@@ -177,41 +152,35 @@ export function useVehiculoTercero(id: string | undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
+      // Obtener todo en una sola query con joins
       const { data: vt, error } = await sb
         .from('liq_vehiculos_terceros')
-        .select('*')
+        .select(`
+          *,
+          contratista:liq_contratistas(*),
+          vehiculo:vehiculos(*, costos:vehiculos_costos(*))
+        `)
         .eq('id', id)
         .single()
 
       if (error) throw error
 
-      // Obtener detalles
-      const { data: vehiculo } = await sb
-        .from('vehiculos')
-        .select('*')
-        .eq('id', (vt as LiqVehiculoTercero).vehiculo_id)
-        .single()
+      type VinculadoConJoins = LiqVehiculoTercero & {
+        contratista: LiqContratista | null
+        vehiculo: (Vehiculo & { costos: VehiculoCostos[] | null }) | null
+      }
 
-      const { data: contratista } = await sb
-        .from('liq_contratistas')
-        .select('*')
-        .eq('id', (vt as LiqVehiculoTercero).contratista_id)
-        .single()
-
-      const { data: costos } = await sb
-        .from('vehiculos_costos')
-        .select('*')
-        .eq('vehiculo_id', (vt as LiqVehiculoTercero).vehiculo_id)
-        .single()
+      const data = vt as VinculadoConJoins
 
       return {
-        ...(vt as LiqVehiculoTercero),
-        vehiculo: vehiculo as Vehiculo,
-        contratista: contratista as LiqContratista,
-        vehiculo_costos: (costos || undefined) as VehiculoCostos | undefined,
+        ...data,
+        vehiculo: data.vehiculo as Vehiculo | null,
+        contratista: data.contratista as LiqContratista,
+        vehiculo_costos: (data.vehiculo?.costos?.[0] || undefined) as VehiculoCostos | undefined,
       }
     },
     enabled: !!id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 
@@ -301,9 +270,14 @@ export function useVehiculosPorContratista(contratistaId: string | undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
+      // Obtener todo en una sola query con joins
       const { data: vinculados, error } = await sb
         .from('liq_vehiculos_terceros')
-        .select('*')
+        .select(`
+          *,
+          contratista:liq_contratistas(*),
+          vehiculo:vehiculos(*, costos:vehiculos_costos(*))
+        `)
         .eq('contratista_id', contratistaId)
         .eq('activo', true)
 
@@ -311,37 +285,22 @@ export function useVehiculosPorContratista(contratistaId: string | undefined) {
 
       if (!vinculados || vinculados.length === 0) return []
 
-      const result = await Promise.all(
-        (vinculados as LiqVehiculoTercero[]).map(async (vt) => {
-          const { data: vehiculo } = await sb
-            .from('vehiculos')
-            .select('*')
-            .eq('id', vt.vehiculo_id)
-            .single()
+      // Mapear resultados al tipo esperado
+      type VinculadoConJoins = LiqVehiculoTercero & {
+        contratista: LiqContratista | null
+        vehiculo: (Vehiculo & { costos: VehiculoCostos[] | null }) | null
+      }
 
-          const { data: contratista } = await sb
-            .from('liq_contratistas')
-            .select('*')
-            .eq('id', vt.contratista_id)
-            .single()
-
-          const { data: costos } = await sb
-            .from('vehiculos_costos')
-            .select('*')
-            .eq('vehiculo_id', vt.vehiculo_id)
-            .single()
-
-          return {
-            ...vt,
-            vehiculo: vehiculo as Vehiculo,
-            contratista: contratista as LiqContratista,
-            vehiculo_costos: (costos || undefined) as VehiculoCostos | undefined,
-          } as LiqVehiculoTerceroConDetalles
-        })
-      )
+      const result = (vinculados as VinculadoConJoins[]).map((vt) => ({
+        ...vt,
+        vehiculo: vt.vehiculo as Vehiculo | null,
+        contratista: vt.contratista as LiqContratista,
+        vehiculo_costos: (vt.vehiculo?.costos?.[0] || undefined) as VehiculoCostos | undefined,
+      }))
 
       return result
     },
     enabled: !!contratistaId,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }

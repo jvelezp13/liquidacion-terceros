@@ -36,46 +36,31 @@ export function useHistorialPagos() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas del escenario
-      const { data: quincenas, error: quincenasError } = await sb
-        .from('liq_quincenas')
-        .select('id')
-        .eq('escenario_id', escenario.id)
-
-      if (quincenasError) throw quincenasError
-      if (!quincenas || quincenas.length === 0) return []
-
-      const quincenaIds = (quincenas as { id: string }[]).map((q) => q.id)
-
-      // Obtener pagos de esas quincenas
+      // Obtener pagos con quincenas en una sola query usando join
       const { data: pagos, error: pagosError } = await sb
         .from('liq_historial_pagos')
-        .select('*')
-        .in('quincena_id', quincenaIds)
+        .select(`
+          *,
+          quincena:liq_quincenas!inner(*)
+        `)
+        .eq('quincena.escenario_id', escenario.id)
         .order('fecha_pago', { ascending: false })
 
       if (pagosError) throw pagosError
       if (!pagos) return []
 
-      // Obtener detalles de quincenas
-      const result = await Promise.all(
-        (pagos as LiqHistorialPago[]).map(async (pago) => {
-          const { data: quincena } = await sb
-            .from('liq_quincenas')
-            .select('*')
-            .eq('id', pago.quincena_id)
-            .single()
+      // Mapear resultados al tipo esperado
+      type PagoConJoin = LiqHistorialPago & { quincena: LiqQuincena }
 
-          return {
-            ...pago,
-            quincena: quincena as LiqQuincena | undefined,
-          }
-        })
-      )
+      const result = (pagos as PagoConJoin[]).map((pago) => ({
+        ...pago,
+        quincena: pago.quincena as LiqQuincena | undefined,
+      }))
 
       return result
     },
     enabled: !!escenario?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 

@@ -45,6 +45,7 @@ export function useContratistas() {
       return (data || []) as LiqContratista[]
     },
     enabled: !!tenant?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 
@@ -69,6 +70,7 @@ export function useContratistasActivos() {
       return (data || []) as LiqContratista[]
     },
     enabled: !!tenant?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutos
   })
 }
 
