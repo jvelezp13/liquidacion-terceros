@@ -27,6 +27,7 @@ import {
   Truck,
   RefreshCw,
   CalendarDays,
+  Calculator,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuincena, useUpdateEstadoQuincena, formatearQuincena } from '@/lib/hooks/use-quincenas'
@@ -38,6 +39,7 @@ import {
   useConfirmarViajesBatch,
   useUpsertViaje,
   useDeleteViaje,
+  useRecalcularCostosViajes,
 } from '@/lib/hooks/use-viajes-ejecutados'
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
@@ -73,6 +75,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
   const upsertViajeMutation = useUpsertViaje()
   const deleteViajeMutation = useDeleteViaje()
+  const recalcularCostosMutation = useRecalcularCostosViajes()
 
   const isLoading = escenarioLoading || quincenaLoading || viajesLoading
 
@@ -135,6 +138,23 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         },
         onError: (error) => {
           toast.error('Error al generar viajes: ' + error.message)
+        },
+      }
+    )
+  }
+
+  // Recalcular costos de viajes existentes desde planificacion_lejanias
+  const handleRecalcularCostos = () => {
+    if (!quincena || !escenario?.id) return
+
+    recalcularCostosMutation.mutate(
+      { quincenaId: quincena.id, escenarioId: escenario.id },
+      {
+        onSuccess: (result) => {
+          toast.success(`${result.actualizados} viajes actualizados`)
+        },
+        onError: (error) => {
+          toast.error('Error al recalcular: ' + error.message)
         },
       }
     )
@@ -348,6 +368,19 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                 <RefreshCw className="mr-1 h-3 w-3" />
               )}
               Generar viajes
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRecalcularCostos}
+              disabled={recalcularCostosMutation.isPending || viajes.length === 0}
+            >
+              {recalcularCostosMutation.isPending ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <Calculator className="mr-1 h-3 w-3" />
+              )}
+              Recalcular costos
             </Button>
             {quincena && (
               <ViajeManualForm

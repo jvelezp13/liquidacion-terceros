@@ -524,5 +524,135 @@ export function useDeleteViaje() {
   })
 }
 
+// Hook para recalcular costos de todos los viajes de una quincena
+// Usa planificacion_lejanias para obtener costos actualizados
+// Respeta estados y rutas de variacion asignadas
+export function useRecalcularCostosViajes() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      quincenaId,
+      escenarioId,
+    }: {
+      quincenaId: string
+      escenarioId: string
+    }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any
+
+      // 1. Obtener todos los viajes de la quincena
+      const { data: viajes, error: viajesError } = await sb
+        .from('liq_viajes_ejecutados')
+        .select('*')
+        .eq('quincena_id', quincenaId)
+
+      if (viajesError) throw viajesError
+      if (!viajes?.length) return { actualizados: 0 }
+
+      // 2. Obtener rutas unicas (programadas + variacion)
+      const rutaIds = new Set<string>()
+      for (const v of viajes) {
+        if (v.ruta_variacion_id) rutaIds.add(v.ruta_variacion_id)
+        else if (v.ruta_programada_id) rutaIds.add(v.ruta_programada_id)
+      }
+
+      // Si no hay rutas, no hay nada que calcular
+      if (rutaIds.size === 0) return { actualizados: 0 }
+
+      // 3. Batch query para obtener planificaciones
+      const { data: planificaciones, error: planError } = await sb
+        .from('planificacion_lejanias')
+        .select('ruta_id, costos_por_dia, peajes_ciclo, frecuencia')
+        .eq('escenario_id', escenarioId)
+        .eq('tipo', 'logistico')
+        .in('ruta_id', Array.from(rutaIds))
+
+      if (planError) throw planError
+
+      // 4. Crear mapa de planificaciones por ruta
+      const planificacionesPorRuta = new Map<
+        string,
+        DatosRutaPlanificacion
+      >()
+      for (const p of planificaciones || []) {
+        planificacionesPorRuta.set(p.ruta_id, {
+          costos: (p.costos_por_dia || []) as CostoDiaPlanificacion[],
+          peajesCiclo: p.peajes_ciclo || 0,
+          frecuencia: p.frecuencia || 'quincenal',
+        })
+      }
+
+      // ========================================
+      // PASO 5: Calcular nuevos costos para cada viaje (sin queries)
+      // ========================================
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const viajesActualizados: any[] = []
+
+      for (const viaje of viajes) {
+        // Saltar viajes sin ruta (destino libre/esporadico)
+        const rutaId = viaje.ruta_variacion_id || viaje.ruta_programada_id
+        if (!rutaId) continue
+
+        const datosRuta = planificacionesPorRuta.get(rutaId)
+        if (!datosRuta) continue
+
+        // Calcular dia ISO desde la fecha del viaje
+        const fecha = new Date(viaje.fecha + 'T00:00:00')
+        const diaISO = convertirDiaJSaISO(fecha.getDay())
+
+        // Calcular costos (usarPrimerDiaSiFalta=true para variaciones)
+        const costos = calcularCostosViaje(datosRuta, diaISO, true)
+
+        // Construir registro completo para upsert (mantener campos originales + nuevos costos)
+        viajesActualizados.push({
+          id: viaje.id,
+          quincena_id: viaje.quincena_id,
+          vehiculo_tercero_id: viaje.vehiculo_tercero_id,
+          fecha: viaje.fecha,
+          ruta_programada_id: viaje.ruta_programada_id,
+          ruta_variacion_id: viaje.ruta_variacion_id,
+          destino: viaje.destino,
+          estado: viaje.estado,
+          notas: viaje.notas,
+          // Costos recalculados
+          costo_combustible: Math.round(costos.costoCombustible),
+          costo_peajes: Math.round(costos.costoPeajes),
+          costo_flete_adicional: Math.round(costos.costoAdicionales),
+          costo_pernocta: Math.round(costos.costoPernocta),
+          requiere_pernocta: costos.requierePernocta,
+          noches_pernocta: costos.nochesPernocta,
+          km_recorridos: costos.kmRecorridos,
+          costo_total: Math.round(costos.costoTotal),
+        })
+      }
+
+      if (viajesActualizados.length === 0) return { actualizados: 0 }
+
+      // ========================================
+      // QUERY 3: UPSERT batch de todos los viajes (1 sola operacion)
+      // ========================================
+      const { error: upsertError } = await sb
+        .from('liq_viajes_ejecutados')
+        .upsert(viajesActualizados, { onConflict: 'id' })
+
+      if (upsertError) throw upsertError
+
+      return { actualizados: viajesActualizados.length }
+    },
+    onSuccess: (_, variables) => {
+      // Invalidar queries relacionadas para refrescar UI
+      queryClient.invalidateQueries({
+        queryKey: ['viajes-ejecutados', variables.quincenaId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['viajes-quincena-completa', variables.quincenaId],
+      })
+      queryClient.invalidateQueries({ queryKey: ['viajes-por-liquidacion'] })
+    },
+  })
+}
+
 // Re-export para mantener compatibilidad
 export { useGenerarViajesDesdeRutas } from './use-generar-viajes'
