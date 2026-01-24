@@ -20,6 +20,7 @@ const rolColors: Record<RolTenant, string> = {
   editor: 'bg-blue-100 text-blue-700',
   viewer: 'bg-gray-100 text-gray-700',
   logistica: 'bg-green-100 text-green-700',
+  soporte: 'bg-orange-100 text-orange-700',
 }
 
 const rolLabels: Record<RolTenant, string> = {
@@ -27,6 +28,7 @@ const rolLabels: Record<RolTenant, string> = {
   editor: 'Editor',
   viewer: 'Viewer',
   logistica: 'Logistica',
+  soporte: 'Soporte',
 }
 
 export function TenantSelector() {

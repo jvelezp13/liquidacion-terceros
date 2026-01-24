@@ -18,7 +18,8 @@ export interface Tenant {
 
 // Roles del sistema
 // Nota: 'logistica' tiene permisos de editor en Liquidacion de Terceros
-export type RolTenant = 'admin' | 'editor' | 'viewer' | 'logistica'
+// 'soporte' es rol temporal de super admin con acceso completo
+export type RolTenant = 'admin' | 'editor' | 'viewer' | 'logistica' | 'soporte'
 
 export interface TenantUser {
   id: string
@@ -193,8 +194,10 @@ export function useHasRole(requiredRole: 'admin' | 'editor' | 'viewer') {
   const { data: tenant, isLoading } = useActiveTenant()
 
   // logistica tiene nivel de editor en Liquidacion de Terceros
+  // soporte tiene nivel de admin (acceso completo)
   const roleHierarchy: Record<RolTenant, number> = {
     admin: 3,
+    soporte: 3, // Mismo nivel que admin
     editor: 2,
     logistica: 2, // Mismo nivel que editor
     viewer: 1,
