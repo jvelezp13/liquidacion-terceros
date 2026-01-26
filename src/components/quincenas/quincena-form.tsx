@@ -147,7 +147,7 @@ export function QuincenaForm({
           )}
 
           <p className="text-sm text-muted-foreground">
-            Las fechas pueden cruzar meses. El mes para sincronizacion se derivara de la fecha de inicio.
+            Las fechas pueden cruzar meses. El mes para sincronizacion se derivara de la fecha de pago.
           </p>
         </div>
 

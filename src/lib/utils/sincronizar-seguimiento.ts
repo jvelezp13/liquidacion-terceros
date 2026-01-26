@@ -17,10 +17,13 @@ const NOMBRES_MESES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
 ]
 
-// Obtener el mes desde una quincena (derivado de fecha_inicio)
+// Obtener el mes desde una quincena (derivado de fecha_pago para registro contable)
 export function getMesDesdeQuincena(quincena: LiqQuincena): number {
-  const fechaInicio = new Date(quincena.fecha_inicio + 'T00:00:00')
-  return fechaInicio.getMonth() + 1
+  // Contablemente el gasto se reconoce en el mes del pago
+  const fechaPago = quincena.fecha_pago
+    ? new Date(quincena.fecha_pago)
+    : new Date() // fallback a hoy si no hay fecha_pago
+  return fechaPago.getMonth() + 1
 }
 
 // Convertir numero de mes a nombre
