@@ -474,6 +474,49 @@ export function useConfirmarViajesBatch() {
   })
 }
 
+// Hook para marcar dia como no operativo (todos los viajes pendientes -> no_ejecutado)
+export function useMarcarDiaNoOperativo() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      viajeIds,
+      quincenaId,
+    }: {
+      viajeIds: string[]
+      quincenaId: string
+    }): Promise<LiqViajeEjecutado[]> => {
+      if (viajeIds.length === 0) return []
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('liq_viajes_ejecutados')
+        .update({ estado: 'no_ejecutado' })
+        .in('id', viajeIds)
+        .select()
+
+      if (error) throw error
+      return data as LiqViajeEjecutado[]
+    },
+    onSuccess: (data, variables) => {
+      // Actualizar cache inmediatamente
+      queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
+        ['viajes-ejecutados', variables.quincenaId],
+        (oldData) => {
+          if (!oldData) return oldData
+          const idsActualizados = new Set(variables.viajeIds)
+          return oldData.map((viaje) =>
+            idsActualizados.has(viaje.id)
+              ? { ...viaje, estado: 'no_ejecutado' as EstadoViaje }
+              : viaje
+          )
+        }
+      )
+    },
+  })
+}
+
 // Hook para eliminar viaje (con actualización optimista)
 export function useDeleteViaje() {
   const supabase = createClient()

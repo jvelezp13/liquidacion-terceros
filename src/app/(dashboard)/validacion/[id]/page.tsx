@@ -37,6 +37,7 @@ import {
   useUpdateEstadoViajeConVariacion,
   useGenerarViajesDesdeRutas,
   useConfirmarViajesBatch,
+  useMarcarDiaNoOperativo,
   useUpsertViaje,
   useDeleteViaje,
   useRecalcularCostosViajes,
@@ -71,6 +72,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const updateEstadoViajeMutation = useUpdateEstadoViaje()
   const updateEstadoViajeConVariacionMutation = useUpdateEstadoViajeConVariacion()
   const confirmarViajesBatchMutation = useConfirmarViajesBatch()
+  const marcarDiaNoOperativoMutation = useMarcarDiaNoOperativo()
   const generarViajesMutation = useGenerarViajesDesdeRutas()
   const updateEstadoQuincenaMutation = useUpdateEstadoQuincena()
   const upsertViajeMutation = useUpsertViaje()
@@ -224,6 +226,26 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     )
   }
 
+  // Marcar todas las rutas pendientes del día como no operativo (festivo, etc.)
+  const handleMarcarDiaNoOperativo = () => {
+    if (viajesPendientesDelDia.length === 0) return
+
+    marcarDiaNoOperativoMutation.mutate(
+      {
+        viajeIds: viajesPendientesDelDia.map((v) => v.id),
+        quincenaId: resolvedParams.id,
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${viajesPendientesDelDia.length} rutas marcadas como no operativo`)
+        },
+        onError: (error) => {
+          toast.error('Error: ' + error.message)
+        },
+      }
+    )
+  }
+
   // Marcar quincena como validada
   const handleValidarQuincena = () => {
     updateEstadoQuincenaMutation.mutate(
@@ -331,7 +353,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   }
 
   const esEditable = quincena.estado === 'borrador'
-  const isUpdating = updateEstadoViajeMutation.isPending || updateEstadoViajeConVariacionMutation.isPending || confirmarViajesBatchMutation.isPending
+  const isUpdating = updateEstadoViajeMutation.isPending || updateEstadoViajeConVariacionMutation.isPending || confirmarViajesBatchMutation.isPending || marcarDiaNoOperativoMutation.isPending
 
   return (
     <div className="space-y-3">
@@ -452,20 +474,36 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                       {viajesFechaSeleccionada.length} viajes
                     </Badge>
                     {esEditable && viajesPendientesDelDia.length > 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-xs"
-                        onClick={handleConfirmarTodasDelDia}
-                        disabled={confirmarViajesBatchMutation.isPending}
-                      >
-                        {confirmarViajesBatchMutation.isPending ? (
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                        ) : (
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                        )}
-                        Confirmar todas
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs text-destructive hover:text-destructive"
+                          onClick={handleMarcarDiaNoOperativo}
+                          disabled={marcarDiaNoOperativoMutation.isPending}
+                        >
+                          {marcarDiaNoOperativoMutation.isPending ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <XCircle className="mr-1 h-3 w-3" />
+                          )}
+                          Dia no operativo
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs"
+                          onClick={handleConfirmarTodasDelDia}
+                          disabled={confirmarViajesBatchMutation.isPending}
+                        >
+                          {confirmarViajesBatchMutation.isPending ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                          )}
+                          Confirmar todas
+                        </Button>
+                      </>
                     )}
                   </div>
                 )}
