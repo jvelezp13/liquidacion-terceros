@@ -171,13 +171,8 @@ export function ViajeManualForm({
     return vehiculos.filter((v) => v.vehiculo_id == null)
   }, [vehiculos])
 
-  // Filtrar rutas del vehículo seleccionado (si es de planeación)
-  const rutasDelVehiculo = useMemo(() => {
-    if (!vehiculoSeleccionado?.vehiculo_id) return []
-    return rutasLogisticas.filter(
-      (r) => r.vehiculo_id === vehiculoSeleccionado.vehiculo_id
-    )
-  }, [rutasLogisticas, vehiculoSeleccionado])
+  // Todas las rutas del escenario (sin filtrar por vehículo)
+  const rutasDisponibles = rutasLogisticas
 
   const rutaId = form.watch('ruta_id')
   const diaCicloWatch = form.watch('dia_ciclo')
@@ -508,12 +503,12 @@ export function ViajeManualForm({
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {rutasDelVehiculo.length === 0 ? (
+                            {rutasDisponibles.length === 0 ? (
                               <div className="p-2 text-center text-sm text-muted-foreground">
-                                Este vehículo no tiene rutas asignadas
+                                No hay rutas configuradas en el escenario
                               </div>
                             ) : (
-                              rutasDelVehiculo.map((ruta) => (
+                              rutasDisponibles.map((ruta) => (
                                 <SelectItem key={ruta.id} value={ruta.id}>
                                   <div className="flex items-center gap-2">
                                     <Route className="h-4 w-4 text-muted-foreground" />
@@ -525,7 +520,7 @@ export function ViajeManualForm({
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          Rutas configuradas para {vehiculoSeleccionado?.placa}
+                          Todas las rutas del escenario
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -632,7 +627,7 @@ export function ViajeManualForm({
                   {tipoRuta === 'existente' && form.getValues('ruta_id') && (
                     <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                       <Route className="h-3 w-3" />
-                      {rutasDelVehiculo.find((r) => r.id === form.getValues('ruta_id'))?.nombre}
+                      {rutasDisponibles.find((r) => r.id === form.getValues('ruta_id'))?.nombre}
                     </div>
                   )}
                   {tipoRuta === 'libre' && form.getValues('destino') && (
