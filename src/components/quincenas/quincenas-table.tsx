@@ -28,7 +28,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import type { LiqQuincena } from '@/types'
-import { formatearQuincena, getNombreMes } from '@/lib/hooks/use-quincenas'
+import { formatearQuincena } from '@/lib/hooks/use-quincenas'
 import { getEstadoQuincenaLabel } from '@/lib/validations/quincena'
 
 interface QuincenasTableProps {
@@ -72,8 +72,8 @@ export function QuincenasTable({
     return (
       <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
         <Calendar className="h-8 w-8" />
-        <p>No hay periodos creados.</p>
-        <p className="text-sm">Crea un periodo para empezar a validar rutas.</p>
+        <p>No hay periodos creados</p>
+        <p className="text-sm">Crea un periodo para empezar a validar rutas</p>
       </div>
     )
   }
@@ -99,7 +99,7 @@ export function QuincenasTable({
                   <div>
                     <p className="font-medium">{formatearQuincena(q)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {getNombreMes(q.mes)} {q.año}
+                      Año {q.año}
                     </p>
                   </div>
                 </div>
@@ -167,7 +167,8 @@ export function QuincenasTable({
                     </Button>
                   )}
 
-                  {/* Menú de acciones */}
+                  {/* Menú de acciones (solo si no está pagado) */}
+                  {q.estado !== 'pagado' && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" disabled={isLoading}>
@@ -232,6 +233,7 @@ export function QuincenasTable({
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  )}
                 </div>
               </TableCell>
             </TableRow>

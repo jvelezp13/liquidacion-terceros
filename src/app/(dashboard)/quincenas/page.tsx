@@ -83,23 +83,21 @@ export default function QuincenasPage() {
     }
     setIsValidatingTraslape(false)
 
-    // Crear la quincena con las fechas del formulario
+    // Crear el periodo con las fechas del formulario
     createMutation.mutate(
       {
         año: data.año,
-        mes: data.mes,
-        quincena: data.quincena as 1 | 2,
         fecha_inicio: data.fecha_inicio,
         fecha_fin: data.fecha_fin,
         notas: data.notas,
       },
       {
         onSuccess: () => {
-          toast.success('Quincena creada')
+          toast.success('Periodo creado')
           setIsFormOpen(false)
         },
         onError: (error) => {
-          toast.error('Error al crear: ' + error.message)
+          toast.error('Error al crear periodo: ' + error.message)
         },
       }
     )

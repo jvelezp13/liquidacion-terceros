@@ -60,15 +60,15 @@ export default function ValidacionPage() {
         </Alert>
       )}
 
-      {/* Quincenas pendientes de validación */}
+      {/* Periodos pendientes de validación */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5" />
-            Quincenas Pendientes
+            Periodos Pendientes
           </CardTitle>
           <CardDescription>
-            Quincenas en estado borrador que requieren validacion
+            Periodos en estado borrador que requieren validacion
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,10 +79,10 @@ export default function ValidacionPage() {
           ) : quincenasBorrador.length === 0 ? (
             <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
               <Calendar className="h-8 w-8" />
-              <p>No hay quincenas pendientes de validacion.</p>
+              <p>No hay periodos pendientes de validacion.</p>
               <Button asChild variant="outline" size="sm">
                 <Link href="/quincenas">
-                  Ir a Quincenas
+                  Ir a Periodos
                 </Link>
               </Button>
             </div>
@@ -120,13 +120,13 @@ export default function ValidacionPage() {
         </CardContent>
       </Card>
 
-      {/* Quincenas ya validadas (para referencia) */}
+      {/* Periodos ya validados (para referencia) */}
       {quincenasValidado.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Quincenas Validadas</CardTitle>
+            <CardTitle>Periodos Validados</CardTitle>
             <CardDescription>
-              Quincenas validadas pendientes de liquidacion
+              Periodos validados pendientes de liquidacion
             </CardDescription>
           </CardHeader>
           <CardContent>

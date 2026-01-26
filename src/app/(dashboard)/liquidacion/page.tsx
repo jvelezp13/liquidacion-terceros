@@ -79,20 +79,20 @@ export default function LiquidacionPage() {
         </div>
       </div>
 
-      {/* Quincenas listas para liquidar */}
+      {/* Periodos listos para liquidar */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Calculator className="h-5 w-5" />
-          Quincenas listas para liquidar
+          Periodos listos para liquidar
         </h2>
 
         {!quincenasLiquidables || quincenasLiquidables.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               <DollarSign className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No hay quincenas validadas para liquidar.</p>
+              <p>No hay periodos validados para liquidar.</p>
               <p className="text-sm mt-1">
-                Valida los viajes de una quincena primero.
+                Valida los viajes de un periodo primero.
               </p>
               <Button
                 variant="outline"
@@ -143,11 +143,11 @@ export default function LiquidacionPage() {
         )}
       </div>
 
-      {/* Quincenas pendientes de validar */}
+      {/* Periodos pendientes de validar */}
       {quincenasPendientes && quincenasPendientes.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-muted-foreground">
-            Quincenas pendientes de validar
+            Periodos pendientes de validar
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {quincenasPendientes.map((quincena: LiqQuincena) => (

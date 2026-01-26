@@ -17,9 +17,10 @@ const NOMBRES_MESES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
 ]
 
-// Obtener el mes desde una quincena (retorna numero)
+// Obtener el mes desde una quincena (derivado de fecha_inicio)
 export function getMesDesdeQuincena(quincena: LiqQuincena): number {
-  return quincena.mes
+  const fechaInicio = new Date(quincena.fecha_inicio + 'T00:00:00')
+  return fechaInicio.getMonth() + 1
 }
 
 // Convertir numero de mes a nombre
@@ -120,7 +121,7 @@ export async function sincronizarConSeguimiento(
         .eq('item_id', vehiculo.vehiculo_id)
         .single()
 
-      const notas = `Flete Q${quincena.quincena} ${quincena.mes}/${quincena.año} - ${vehiculo.placa}`
+      const notas = `Flete P${quincena.numero_periodo}/${quincena.año} - ${vehiculo.placa}`
       let ejecucionRubroId: string | null = null
 
       if (existente) {
@@ -194,7 +195,7 @@ export async function sincronizarConSeguimiento(
         .is('item_id', null)
         .single()
 
-      const notasLejanias = `Lejanias terceros Q${quincena.quincena} ${quincena.mes}/${quincena.año}`
+      const notasLejanias = `Lejanias terceros P${quincena.numero_periodo}/${quincena.año}`
 
       if (existenteLejanias) {
         // Siempre sumar al valor existente

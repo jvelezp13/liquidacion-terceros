@@ -551,6 +551,53 @@ export type Database = {
         }
         Relationships: []
       }
+      facturas_cedidas: {
+        Row: {
+          costo_transaccion: number
+          created_at: string
+          descontar_renta: boolean
+          descripcion: string | null
+          escenario_id: string
+          id: string
+          iva: number
+          mes: number
+          monto_base: number
+          updated_at: string
+        }
+        Insert: {
+          costo_transaccion?: number
+          created_at?: string
+          descontar_renta?: boolean
+          descripcion?: string | null
+          escenario_id: string
+          id?: string
+          iva: number
+          mes: number
+          monto_base: number
+          updated_at?: string
+        }
+        Update: {
+          costo_transaccion?: number
+          created_at?: string
+          descontar_renta?: boolean
+          descripcion?: string | null
+          escenario_id?: string
+          id?: string
+          iva?: number
+          mes?: number
+          monto_base?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facturas_cedidas_escenario_id_fkey"
+            columns: ["escenario_id"]
+            isOneToOne: false
+            referencedRelation: "escenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gastos: {
         Row: {
           activo: boolean
@@ -1002,10 +1049,11 @@ export type Database = {
           fecha_validacion: string | null
           id: string
           liquidado_por: string | null
-          mes: number
+          mes: number | null
           notas: string | null
+          numero_periodo: number
           pagado_por: string | null
-          quincena: number
+          quincena: number | null
           updated_at: string
           validado_por: string | null
         }
@@ -1021,10 +1069,11 @@ export type Database = {
           fecha_validacion?: string | null
           id?: string
           liquidado_por?: string | null
-          mes: number
+          mes?: number | null
           notas?: string | null
+          numero_periodo: number
           pagado_por?: string | null
-          quincena: number
+          quincena?: number | null
           updated_at?: string
           validado_por?: string | null
         }
@@ -1040,10 +1089,11 @@ export type Database = {
           fecha_validacion?: string | null
           id?: string
           liquidado_por?: string | null
-          mes?: number
+          mes?: number | null
           notas?: string | null
+          numero_periodo?: number
           pagado_por?: string | null
-          quincena?: number
+          quincena?: number | null
           updated_at?: string
           validado_por?: string | null
         }
@@ -2559,6 +2609,7 @@ export type Database = {
           mes: number | null
           notas: string | null
           numero_cuenta: string | null
+          numero_periodo: number | null
           placa: string | null
           quincena: number | null
           quincena_id: string | null
@@ -2614,6 +2665,7 @@ export type Database = {
           metodo_pago: string | null
           numero_cuenta: string | null
           numero_documento: string | null
+          numero_periodo: number | null
           quincena: number | null
           quincena_id: string | null
           referencia_pago: string | null
@@ -2654,6 +2706,40 @@ export type Database = {
           secciones: string[]
           snapshot: Json
         }[]
+      }
+      get_next_periodo_number: {
+        Args: { p_año: number; p_escenario_id: string }
+        Returns: number
+      }
+      is_tenant_admin: { Args: never; Returns: boolean }
+      marcar_quincena_pagada: {
+        Args: { p_metodo_pago?: string; p_pagos: Json; p_quincena_id: string }
+        Returns: {
+          año: number
+          created_at: string
+          escenario_id: string
+          estado: string
+          fecha_fin: string
+          fecha_inicio: string
+          fecha_liquidacion: string | null
+          fecha_pago: string | null
+          fecha_validacion: string | null
+          id: string
+          liquidado_por: string | null
+          mes: number | null
+          notas: string | null
+          numero_periodo: number
+          pagado_por: string | null
+          quincena: number | null
+          updated_at: string
+          validado_por: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "liq_quincenas"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       obtener_descuento_mes: {
         Args: { p_descuento_config_id: string; p_mes: string }

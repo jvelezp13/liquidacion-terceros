@@ -5,11 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useEscenarioActivo } from './use-escenario-activo'
 import type { LiqQuincena, EstadoQuincena } from '@/types'
 
-// Tipo para crear una quincena
+// Tipo para crear un periodo (solo año y fechas, numero_periodo se autogenera)
 export interface CreateQuincenaInput {
   año: number
-  mes: number
-  quincena: 1 | 2
   fecha_inicio: string
   fecha_fin: string
   notas?: string
@@ -31,8 +29,7 @@ export function useQuincenas() {
         .select('*')
         .eq('escenario_id', escenario.id)
         .order('año', { ascending: false })
-        .order('mes', { ascending: false })
-        .order('quincena', { ascending: false })
+        .order('numero_periodo', { ascending: false })
 
       if (error) throw error
       return (data || []) as LiqQuincena[]
@@ -59,8 +56,7 @@ export function useQuincenasPorEstado(estado: EstadoQuincena) {
         .eq('escenario_id', escenario.id)
         .eq('estado', estado)
         .order('año', { ascending: false })
-        .order('mes', { ascending: false })
-        .order('quincena', { ascending: false })
+        .order('numero_periodo', { ascending: false })
 
       if (error) throw error
       return (data || []) as LiqQuincena[]
@@ -86,8 +82,7 @@ export function useQuincenaActual() {
         .eq('escenario_id', escenario.id)
         .in('estado', ['borrador', 'validado'])
         .order('año', { ascending: false })
-        .order('mes', { ascending: false })
-        .order('quincena', { ascending: false })
+        .order('numero_periodo', { ascending: false })
         .limit(1)
         .single()
 
@@ -125,7 +120,7 @@ export function useQuincena(id: string | undefined) {
   })
 }
 
-// Hook para crear una quincena
+// Hook para crear un periodo (numero_periodo se autogenera via trigger)
 export function useCreateQuincena() {
   const supabase = createClient()
   const queryClient = useQueryClient()
@@ -141,9 +136,13 @@ export function useCreateQuincena() {
       const { data, error } = await (supabase as any)
         .from('liq_quincenas')
         .insert({
-          ...input,
+          año: input.año,
+          fecha_inicio: input.fecha_inicio,
+          fecha_fin: input.fecha_fin,
+          notas: input.notas,
           escenario_id: escenario.id,
           estado: 'borrador',
+          // numero_periodo se autogenera via trigger
         })
         .select()
         .single()
@@ -177,14 +176,16 @@ export function useUpdateEstadoQuincena() {
       // Obtener estado actual de la quincena
       const { data: quincenaActual, error: fetchError } = await sb
         .from('liq_quincenas')
-        .select('estado, mes')
+        .select('estado, fecha_inicio')
         .eq('id', id)
         .single()
 
       if (fetchError) throw fetchError
 
-      const estadoAnterior = (quincenaActual as { estado: EstadoQuincena; mes: number }).estado
-      const mes = (quincenaActual as { estado: EstadoQuincena; mes: number }).mes
+      const estadoAnterior = (quincenaActual as { estado: EstadoQuincena; fecha_inicio: string }).estado
+      // Derivar mes de fecha_inicio
+      const fechaInicio = new Date((quincenaActual as { fecha_inicio: string }).fecha_inicio + 'T00:00:00')
+      const mesNumero = fechaInicio.getMonth() + 1
 
       const updateData: Record<string, unknown> = { estado }
 
@@ -253,7 +254,7 @@ export function useUpdateEstadoQuincena() {
               .from('ejecucion_rubros')
               .delete()
               .eq('escenario_id', escenarioId)
-              .eq('mes', mes)
+              .eq('mes', mesNumero)
               .eq('tipo_rubro', 'vehiculos')
               .in('item_id', vehiculoIds)
 
@@ -349,7 +350,7 @@ export async function verificarTraslape(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
     .from('liq_quincenas')
-    .select('id, fecha_inicio, fecha_fin, año, mes, quincena')
+    .select('id, fecha_inicio, fecha_fin, año, numero_periodo')
     .eq('escenario_id', escenarioId)
     .lte('fecha_inicio', fechaFin)
     .gte('fecha_fin', fechaInicio)
@@ -371,35 +372,15 @@ export async function verificarTraslape(
       fecha_inicio: string
       fecha_fin: string
       año: number
-      mes: number
-      quincena: number
+      numero_periodo: number
     }
-    const nombreMes = getNombreMes(conflicto.mes)
-    const sufijo = conflicto.quincena === 1 ? '1ra' : '2da'
     return {
       hayTraslape: true,
-      periodoConflicto: `${sufijo} Quincena ${nombreMes} ${conflicto.año} (${conflicto.fecha_inicio} al ${conflicto.fecha_fin})`,
+      periodoConflicto: `Periodo ${conflicto.numero_periodo}/${conflicto.año} (${conflicto.fecha_inicio} al ${conflicto.fecha_fin})`,
     }
   }
 
   return { hayTraslape: false }
-}
-
-// Utilidad para calcular fechas de quincena
-export function calcularFechasQuincena(año: number, mes: number, quincena: 1 | 2) {
-  if (quincena === 1) {
-    return {
-      fecha_inicio: `${año}-${String(mes).padStart(2, '0')}-01`,
-      fecha_fin: `${año}-${String(mes).padStart(2, '0')}-15`,
-    }
-  } else {
-    // Último día del mes
-    const ultimoDia = new Date(año, mes, 0).getDate()
-    return {
-      fecha_inicio: `${año}-${String(mes).padStart(2, '0')}-16`,
-      fecha_fin: `${año}-${String(mes).padStart(2, '0')}-${ultimoDia}`,
-    }
-  }
 }
 
 // Utilidad para obtener el nombre del mes
@@ -411,9 +392,35 @@ export function getNombreMes(mes: number): string {
   return meses[mes - 1] || ''
 }
 
-// Utilidad para formatear el nombre de una quincena
+// Utilidad para formatear el nombre de un periodo
 export function formatearQuincena(quincena: LiqQuincena): string {
-  const nombreMes = getNombreMes(quincena.mes)
-  const sufijo = quincena.quincena === 1 ? '1ra' : '2da'
-  return `${sufijo} Quincena ${nombreMes} ${quincena.año}`
+  return `Periodo ${quincena.numero_periodo} - ${quincena.año}`
+}
+
+// Utilidad para obtener fechas por defecto (hoy + 13 dias = 2 semanas)
+export function calcularFechasPeriodo(): { fecha_inicio: string; fecha_fin: string } {
+  const hoy = new Date()
+  const fin = new Date(hoy)
+  fin.setDate(fin.getDate() + 13) // 14 dias total (hoy + 13)
+
+  const formatDate = (d: Date) => d.toISOString().split('T')[0]
+
+  return {
+    fecha_inicio: formatDate(hoy),
+    fecha_fin: formatDate(fin),
+  }
+}
+
+// Utilidad para calcular duracion en dias
+export function calcularDuracionPeriodo(fechaInicio: string, fechaFin: string): number {
+  const inicio = new Date(fechaInicio + 'T00:00:00')
+  const fin = new Date(fechaFin + 'T00:00:00')
+  const diffTime = Math.abs(fin.getTime() - inicio.getTime())
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1 // +1 para incluir ambos dias
+}
+
+// Utilidad para obtener el mes desde una quincena (derivado de fecha_inicio)
+export function getMesDesdeQuincena(quincena: LiqQuincena): number {
+  const fechaInicio = new Date(quincena.fecha_inicio + 'T00:00:00')
+  return fechaInicio.getMonth() + 1
 }

@@ -30,7 +30,7 @@ import type { LiqQuincena, LiqContratista } from '@/types'
 
 export default function HistorialPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState('quincenas')
+  const [activeTab, setActiveTab] = useState('periodos')
 
   const { data: quincenasPagadas, isLoading: loadingPagadas } = useQuincenasPorEstado('pagado')
   const { data: quincenas, isLoading: loadingQuincenas } = useQuincenas()
@@ -68,9 +68,9 @@ export default function HistorialPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="quincenas" className="flex items-center gap-2">
+          <TabsTrigger value="periodos" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            Quincenas
+            Periodos
           </TabsTrigger>
           <TabsTrigger value="pagos" className="flex items-center gap-2">
             <DollarSign className="h-4 w-4" />
@@ -78,30 +78,30 @@ export default function HistorialPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab: Quincenas */}
-        <TabsContent value="quincenas" className="mt-6">
+        {/* Tab: Periodos */}
+        <TabsContent value="periodos" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
-                Historial de Quincenas
+                Historial de Periodos
               </CardTitle>
               <CardDescription>
-                Todas las quincenas procesadas
+                Todos los periodos procesados
               </CardDescription>
             </CardHeader>
             <CardContent>
               {quincenasCompletadas.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No hay quincenas completadas.</p>
+                  <p>No hay periodos completados.</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Quincena</TableHead>
                       <TableHead>Periodo</TableHead>
+                      <TableHead>Fechas</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead>Fecha Liquidacion</TableHead>
                       <TableHead>Fecha Pago</TableHead>
@@ -181,7 +181,7 @@ export default function HistorialPage() {
                     <TableRow>
                       <TableHead>Fecha</TableHead>
                       <TableHead>Contratista</TableHead>
-                      <TableHead>Quincena</TableHead>
+                      <TableHead>Periodo</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
                       <TableHead>Referencia</TableHead>
                       <TableHead>Metodo Pago</TableHead>

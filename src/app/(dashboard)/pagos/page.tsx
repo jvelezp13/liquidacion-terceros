@@ -112,7 +112,7 @@ export default function PagosPage() {
           const sincMsg = data.sincronizacion
             ? ` (${data.sincronizacion.vehiculos} vehiculos, ${data.sincronizacion.lejanias} lejanias sincronizados)`
             : ''
-          toast.success(`Quincena marcada como pagada${sincMsg}`)
+          toast.success(`Periodo marcado como pagado${sincMsg}`)
           setShowConfirmarPagadaDialog(false)
           setSelectedQuincena(null)
         },
@@ -141,12 +141,12 @@ export default function PagosPage() {
         </p>
       </div>
 
-      {/* Quincenas liquidadas pendientes de pago */}
+      {/* Periodos liquidados pendientes de pago */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Quincenas Pendientes de Pago
+            Periodos Pendientes de Pago
           </CardTitle>
           <CardDescription>
             Liquidaciones aprobadas listas para procesar pago
@@ -156,9 +156,9 @@ export default function PagosPage() {
           {!quincenasLiquidadas || quincenasLiquidadas.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <DollarSign className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No hay quincenas pendientes de pago.</p>
+              <p>No hay periodos pendientes de pago.</p>
               <p className="text-sm mt-1">
-                Las quincenas liquidadas apareceran aqui.
+                Los periodos liquidados apareceran aqui.
               </p>
             </div>
           ) : (

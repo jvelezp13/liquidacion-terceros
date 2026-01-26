@@ -257,7 +257,7 @@ export function VehiculoTerceroForm({
                         onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
                       />
                     </FormControl>
-                    <FormDescription>Se divide por quincena</FormDescription>
+                    <FormDescription>Se divide por periodo</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
