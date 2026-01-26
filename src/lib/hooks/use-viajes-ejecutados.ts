@@ -400,6 +400,25 @@ export function useUpdateEstadoViajeConVariacion() {
       return data as LiqViajeEjecutado
     },
     onSuccess: (data, variables) => {
+      // Buscar datos de la ruta de variacion en el cache de rutas
+      // Usamos getQueriesData porque la key incluye escenario_id
+      let rutaVariacionData: RutaLogistica | undefined = undefined
+      if (variables.rutaVariacionId) {
+        const queries = queryClient.getQueriesData<RutaLogistica[]>({
+          queryKey: ['rutas-logisticas']
+        })
+        // Buscar en cualquier cache de rutas que tenga datos
+        for (const [, rutasData] of queries) {
+          if (rutasData) {
+            const found = rutasData.find(r => r.id === variables.rutaVariacionId)
+            if (found) {
+              rutaVariacionData = found
+              break
+            }
+          }
+        }
+      }
+
       // Actualizar cache con todos los campos actualizados
       queryClient.setQueryData<ViajeEjecutadoConDetalles[]>(
         ['viajes-ejecutados', variables.quincenaId],
@@ -411,6 +430,7 @@ export function useUpdateEstadoViajeConVariacion() {
                   ...viaje,
                   estado: data.estado,
                   ruta_variacion_id: data.ruta_variacion_id,
+                  ruta_variacion: rutaVariacionData,
                   costo_combustible: data.costo_combustible,
                   costo_peajes: data.costo_peajes,
                   costo_flete_adicional: data.costo_flete_adicional,
