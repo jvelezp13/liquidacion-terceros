@@ -6,8 +6,6 @@ import type { LiqViajeEjecutado } from '@/types'
 import {
   calcularCostosViaje,
   convertirDiaJSaISO,
-  getSemanaQuincena,
-  obtenerDiaCicloParaDia,
   type CostoDiaPlanificacion,
   type DatosRutaPlanificacion,
 } from '@/lib/utils/generar-viajes'
@@ -17,6 +15,13 @@ interface RutaProgramada {
   vehiculo_tercero_id: string
   ruta_id: string
   dia_semana: number
+  dia_ciclo: number | null
+}
+
+// Tipo para datos de ruta programada (ruta_id + dia_ciclo)
+interface DatosRutaProgramada {
+  rutaId: string
+  diaCiclo: number | null
 }
 
 // Tipo para viaje existente (solo para verificar duplicados)
@@ -66,22 +71,25 @@ export function useGenerarViajesDesdeRutas() {
       // ========================================
       const { data: todasRutasProgramadas, error: rutasError } = await sb
         .from('liq_vehiculo_rutas_programadas')
-        .select('vehiculo_tercero_id, ruta_id, dia_semana')
+        .select('vehiculo_tercero_id, ruta_id, dia_semana, dia_ciclo')
         .in('vehiculo_tercero_id', vehiculoIds)
         .eq('activo', true)
 
       if (rutasError) throw rutasError
       if (!todasRutasProgramadas || todasRutasProgramadas.length === 0) return []
 
-      // Organizar rutas por vehículo
-      const rutasPorVehiculo = new Map<string, Map<number, string>>()
+      // Organizar rutas por vehículo (incluyendo dia_ciclo)
+      const rutasPorVehiculo = new Map<string, Map<number, DatosRutaProgramada>>()
       const rutasUnicas = new Set<string>()
 
       for (const rp of todasRutasProgramadas as RutaProgramada[]) {
         if (!rutasPorVehiculo.has(rp.vehiculo_tercero_id)) {
           rutasPorVehiculo.set(rp.vehiculo_tercero_id, new Map())
         }
-        rutasPorVehiculo.get(rp.vehiculo_tercero_id)!.set(rp.dia_semana, rp.ruta_id)
+        rutasPorVehiculo.get(rp.vehiculo_tercero_id)!.set(rp.dia_semana, {
+          rutaId: rp.ruta_id,
+          diaCiclo: rp.dia_ciclo,
+        })
         rutasUnicas.add(rp.ruta_id)
       }
 
@@ -155,33 +163,32 @@ export function useGenerarViajesDesdeRutas() {
         // Iterar por cada día de la quincena
         for (let fecha = new Date(inicio); fecha <= fin; fecha.setDate(fecha.getDate() + 1)) {
           const diaISO = convertirDiaJSaISO(fecha.getDay())
-          const rutaProgramadaId = rutasPorDia.get(diaISO)
+          const datosRutaProgramada = rutasPorDia.get(diaISO)
 
-          if (!rutaProgramadaId) continue
+          if (!datosRutaProgramada) continue
 
+          const { rutaId, diaCiclo: diaCicloProgramado } = datosRutaProgramada
           const fechaStr = fecha.toISOString().split('T')[0]
           const clave = `${vehiculoId}-${fechaStr}`
 
           // Verificar duplicado en O(1)
           if (existentesSet.has(clave)) continue
 
-          // Calcular costos Y día del ciclo
-          const datosRuta = datosPorRuta.get(rutaProgramadaId)
+          // Obtener costos de planificación usando el ruta_id
+          const datosRuta = datosPorRuta.get(rutaId)
 
-          // Solo calcular dia_ciclo si la ruta tiene múltiples días
+          // Usar dia_ciclo de rutas programadas (ya configurado por el usuario)
+          // Solo undefined si es ruta de un solo día
           const diasCiclo = datosRuta?.costos?.length || 0
-          const semanaQuincena = getSemanaQuincena(fecha, inicio)
-          const diaCiclo = diasCiclo > 1
-            ? obtenerDiaCicloParaDia(datosRuta, diaISO, semanaQuincena)
-            : undefined
+          const diaCiclo = diasCiclo > 1 ? diaCicloProgramado : null
 
-          const costos = calcularCostosViaje(datosRuta, diaISO, false, diaCiclo)
+          const costos = calcularCostosViaje(datosRuta, diaISO, false, diaCiclo ?? undefined)
 
           viajesACrear.push({
             quincena_id: quincenaId,
             vehiculo_tercero_id: vehiculoId,
             fecha: fechaStr,
-            ruta_programada_id: rutaProgramadaId,
+            ruta_programada_id: rutaId,
             estado: 'pendiente',
             costo_combustible: costos.costoCombustible,
             costo_peajes: costos.costoPeajes,
@@ -191,7 +198,7 @@ export function useGenerarViajesDesdeRutas() {
             noches_pernocta: costos.nochesPernocta,
             km_recorridos: costos.kmRecorridos,
             costo_total: costos.costoTotal,
-            dia_ciclo: diaCiclo ?? null,
+            dia_ciclo: diaCiclo,
           })
         }
       }
