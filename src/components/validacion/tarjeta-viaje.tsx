@@ -32,6 +32,34 @@ interface InfoDiaCiclo {
 // Mapa de ruta_id -> info de días del ciclo
 type MapaInfoDiasCiclo = Map<string, InfoDiaCiclo[]>
 
+// Mapeo de día de semana para fallback
+const DIAS_NOMBRES_FALLBACK: Record<number, string> = {
+  1: 'lunes',
+  2: 'martes',
+  3: 'miercoles',
+  4: 'jueves',
+  5: 'viernes',
+  6: 'sabado',
+  7: 'domingo',
+}
+
+/**
+ * Calcula el día del ciclo basándose en el día de la semana del viaje.
+ * Fallback para viajes existentes que no tienen dia_ciclo guardado.
+ */
+function calcularDiaCicloFallback(
+  fecha: string,
+  infoDiasCiclo: InfoDiaCiclo[]
+): number {
+  const fechaDate = new Date(fecha + 'T00:00:00')
+  const diaSemana = fechaDate.getDay() // 0=dom, 1=lun...
+  const diaISO = diaSemana === 0 ? 7 : diaSemana
+  const diaNombre = DIAS_NOMBRES_FALLBACK[diaISO]
+
+  const index = infoDiasCiclo.findIndex((d) => d.diaNombre === diaNombre)
+  return index >= 0 ? index + 1 : 1
+}
+
 interface TarjetaViajeProps {
   viaje: ViajeEjecutadoConDetalles
   rutas: RutaLogistica[]
@@ -216,11 +244,11 @@ export function TarjetaViaje({
           {obtenerRuta()}
         </span>
 
-        {/* Badge de día del ciclo (si aplica) */}
-        {viaje.dia_ciclo && infoDiasCiclo.length > 1 && (
+        {/* Badge de día del ciclo (si la ruta tiene múltiples días) */}
+        {infoDiasCiclo.length > 1 && (
           <Badge variant="outline" className="shrink-0 text-xs gap-1 px-1.5">
             <Calendar className="h-3 w-3" />
-            Día {viaje.dia_ciclo}/{infoDiasCiclo.length}
+            Día {viaje.dia_ciclo ?? calcularDiaCicloFallback(viaje.fecha, infoDiasCiclo)}/{infoDiasCiclo.length}
           </Badge>
         )}
 

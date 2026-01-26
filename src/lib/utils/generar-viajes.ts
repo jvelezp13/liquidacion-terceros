@@ -182,3 +182,37 @@ export function obtenerInfoDiasCiclo(datosRuta: DatosRutaPlanificacion | undefin
     tienePernocta: (costo.pernocta || 0) > 0,
   }))
 }
+
+/**
+ * Dado un día ISO (1-7) y los datos de la ruta, determina qué día del ciclo corresponde.
+ * Retorna undefined si el día no está en la configuración de la ruta.
+ *
+ * @param datosRuta - Datos de planificación de la ruta
+ * @param diaISO - Día de la semana en formato ISO (1=Lunes, 7=Domingo)
+ * @param semanaQuincena - 1 o 2, para rutas quincenales
+ * @returns Número del día del ciclo (1-based) o undefined si no corresponde
+ */
+export function obtenerDiaCicloParaDia(
+  datosRuta: DatosRutaPlanificacion | undefined,
+  diaISO: number,
+  semanaQuincena?: number
+): number | undefined {
+  if (!datosRuta || !datosRuta.costos || datosRuta.costos.length === 0) {
+    return undefined
+  }
+
+  const diaNombre = DIAS_NOMBRE[diaISO]
+
+  // Buscar el índice del día en el array de costos
+  const index = datosRuta.costos.findIndex((c) => {
+    const coincideDia = c.dia === diaNombre
+    // Si es ruta quincenal, también verificar semana
+    if (datosRuta.frecuencia === 'quincenal' && semanaQuincena) {
+      return coincideDia && c.semana === semanaQuincena
+    }
+    return coincideDia
+  })
+
+  // dia_ciclo es 1-based
+  return index >= 0 ? index + 1 : undefined
+}

@@ -6,6 +6,8 @@ import type { LiqViajeEjecutado } from '@/types'
 import {
   calcularCostosViaje,
   convertirDiaJSaISO,
+  getSemanaQuincena,
+  obtenerDiaCicloParaDia,
   type CostoDiaPlanificacion,
   type DatosRutaPlanificacion,
 } from '@/lib/utils/generar-viajes'
@@ -142,6 +144,7 @@ export function useGenerarViajesDesdeRutas() {
         noches_pernocta: number
         km_recorridos: number
         costo_total: number
+        dia_ciclo: number | null
       }> = []
 
       const inicio = new Date(fechaInicio + 'T00:00:00')
@@ -162,9 +165,17 @@ export function useGenerarViajesDesdeRutas() {
           // Verificar duplicado en O(1)
           if (existentesSet.has(clave)) continue
 
-          // Calcular costos
+          // Calcular costos Y día del ciclo
           const datosRuta = datosPorRuta.get(rutaProgramadaId)
-          const costos = calcularCostosViaje(datosRuta, diaISO)
+
+          // Solo calcular dia_ciclo si la ruta tiene múltiples días
+          const diasCiclo = datosRuta?.costos?.length || 0
+          const semanaQuincena = getSemanaQuincena(fecha, inicio)
+          const diaCiclo = diasCiclo > 1
+            ? obtenerDiaCicloParaDia(datosRuta, diaISO, semanaQuincena)
+            : undefined
+
+          const costos = calcularCostosViaje(datosRuta, diaISO, false, diaCiclo)
 
           viajesACrear.push({
             quincena_id: quincenaId,
@@ -180,6 +191,7 @@ export function useGenerarViajesDesdeRutas() {
             noches_pernocta: costos.nochesPernocta,
             km_recorridos: costos.kmRecorridos,
             costo_total: costos.costoTotal,
+            dia_ciclo: diaCiclo ?? null,
           })
         }
       }
