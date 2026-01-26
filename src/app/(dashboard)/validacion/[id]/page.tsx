@@ -297,6 +297,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     fecha: string
     ruta_programada_id?: string
     destino?: string
+    dia_ciclo?: number
     costo_combustible: number
     costo_peajes: number
     costo_flete_adicional: number
@@ -311,6 +312,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         ruta_programada_id: data.ruta_programada_id || null,
         destino: data.destino || null,
         estado: 'pendiente',
+        dia_ciclo: data.dia_ciclo,
         costo_combustible: data.costo_combustible,
         costo_peajes: data.costo_peajes,
         costo_flete_adicional: data.costo_flete_adicional,
