@@ -14,6 +14,7 @@ export interface CreateRutaProgramadaInput {
   vehiculo_tercero_id: string
   ruta_id: string
   dia_semana: number // 1=Lunes, 7=Domingo
+  dia_ciclo?: number | null // Para rutas de múltiples días (pernocte)
 }
 
 // Nombres de días de la semana
@@ -155,7 +156,7 @@ export function useSetRutasProgramadas() {
       rutas,
     }: {
       vehiculoTerceroId: string
-      rutas: { ruta_id: string; dia_semana: number }[]
+      rutas: { ruta_id: string; dia_semana: number; dia_ciclo?: number | null }[]
     }): Promise<LiqVehiculoRutaProgramada[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
@@ -171,7 +172,7 @@ export function useSetRutasProgramadas() {
       // Si no hay rutas nuevas, retornar vacío
       if (rutas.length === 0) return []
 
-      // Insertar nuevas rutas
+      // Insertar nuevas rutas (incluyendo dia_ciclo si existe)
       const { data, error: insertError } = await sb
         .from('liq_vehiculo_rutas_programadas')
         .insert(
@@ -179,6 +180,7 @@ export function useSetRutasProgramadas() {
             vehiculo_tercero_id: vehiculoTerceroId,
             ruta_id: r.ruta_id,
             dia_semana: r.dia_semana,
+            dia_ciclo: r.dia_ciclo ?? null,
           }))
         )
         .select()
