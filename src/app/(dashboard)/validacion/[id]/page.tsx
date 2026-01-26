@@ -45,6 +45,7 @@ import {
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { useEscenarioActivo } from '@/lib/hooks/use-escenario-activo'
 import { useVehiculosTerceros } from '@/lib/hooks/use-vehiculos-terceros'
+import { useInfoDiasCicloRutas, type MapaInfoDiasCiclo } from '@/lib/hooks/use-info-dias-ciclo'
 import {
   CalendarioCompacto,
   TarjetaViaje,
@@ -68,6 +69,22 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
   const { data: viajes = [], isLoading: viajesLoading, refetch: refetchViajes } = useViajesQuincena(resolvedParams.id)
   const { data: rutas = [] } = useRutasLogisticas()
   const { data: vehiculosTerceros = [] } = useVehiculosTerceros()
+
+  // Extraer IDs de rutas únicas de los viajes para obtener info de días del ciclo
+  const rutaIdsDeViajes = useMemo(() => {
+    const ids = new Set<string>()
+    for (const viaje of viajes) {
+      if (viaje.ruta_programada_id) ids.add(viaje.ruta_programada_id)
+      if (viaje.ruta_variacion_id) ids.add(viaje.ruta_variacion_id)
+    }
+    // Incluir también todas las rutas disponibles para cuando se seleccione variación
+    for (const ruta of rutas) {
+      ids.add(ruta.id)
+    }
+    return Array.from(ids)
+  }, [viajes, rutas])
+
+  const { data: infoDiasCicloMap = new Map() as MapaInfoDiasCiclo } = useInfoDiasCicloRutas(rutaIdsDeViajes)
 
   const updateEstadoViajeMutation = useUpdateEstadoViaje()
   const updateEstadoViajeConVariacionMutation = useUpdateEstadoViajeConVariacion()
@@ -101,6 +118,16 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
 
   // Viajes pendientes del día seleccionado
   const viajesPendientesDelDia = viajesFechaSeleccionada.filter((v) => v.estado === 'pendiente')
+
+  // Helper para obtener info de días del ciclo de un viaje
+  // Usa la ruta de variación si existe, o la ruta programada
+  const getInfoDiasCicloViaje = (viajeId: string) => {
+    const viaje = viajes.find((v) => v.id === viajeId)
+    if (!viaje) return []
+    const rutaId = viaje.ruta_variacion_id || viaje.ruta_programada_id
+    if (!rutaId) return []
+    return infoDiasCicloMap.get(rutaId) || []
+  }
 
   // Estadísticas
   const estadisticas = useMemo(() => {
@@ -186,7 +213,8 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     viajeId: string,
     nuevoEstado: EstadoViaje,
     rutaVariacionId: string | null,
-    quincenaId: string
+    quincenaId: string,
+    diaCiclo?: number | null
   ) => {
     updateEstadoViajeConVariacionMutation.mutate(
       {
@@ -194,6 +222,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         estado: nuevoEstado,
         rutaVariacionId,
         quincenaId,
+        diaCiclo,
       },
       {
         onSuccess: () => {
@@ -527,12 +556,14 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                       onCambiarEstado={(estado) =>
                         handleCambiarEstadoViaje(viaje.id, estado, resolvedParams.id)
                       }
-                      onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
-                        handleCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, resolvedParams.id)
+                      onCambiarEstadoConVariacion={(estado, rutaVariacionId, diaCiclo) =>
+                        handleCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, resolvedParams.id, diaCiclo)
                       }
                       onEliminar={() => handleEliminarViaje(viaje.id)}
                       isUpdating={isUpdating}
                       disabled={!esEditable}
+                      infoDiasCiclo={getInfoDiasCicloViaje(viaje.id)}
+                      infoDiasCicloMap={infoDiasCicloMap}
                     />
                   ))}
                 </div>
@@ -552,6 +583,7 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
             isUpdating={isUpdating}
             disabled={!esEditable}
             quincenaId={resolvedParams.id}
+            infoDiasCicloMap={infoDiasCicloMap}
           />
         </TabsContent>
       </Tabs>

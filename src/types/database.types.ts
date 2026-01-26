@@ -1303,6 +1303,7 @@ export type Database = {
           created_at: string
           destino: string | null
           destino_manual: string | null
+          dia_ciclo: number | null
           estado: string
           fecha: string
           fecha_validacion: string | null
@@ -1329,6 +1330,7 @@ export type Database = {
           created_at?: string
           destino?: string | null
           destino_manual?: string | null
+          dia_ciclo?: number | null
           estado?: string
           fecha: string
           fecha_validacion?: string | null
@@ -1355,6 +1357,7 @@ export type Database = {
           created_at?: string
           destino?: string | null
           destino_manual?: string | null
+          dia_ciclo?: number | null
           estado?: string
           fecha?: string
           fecha_validacion?: string | null

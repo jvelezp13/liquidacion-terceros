@@ -54,7 +54,13 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useRutasLogisticas } from '@/lib/hooks/use-rutas-logisticas'
 import { createClient } from '@/lib/supabase/client'
-import { calcularCostosViaje, type DatosRutaPlanificacion, type CostoDiaPlanificacion } from '@/lib/utils/generar-viajes'
+import {
+  calcularCostosViaje,
+  obtenerDiasCiclo,
+  obtenerInfoDiasCiclo,
+  type DatosRutaPlanificacion,
+  type CostoDiaPlanificacion,
+} from '@/lib/utils/generar-viajes'
 import type { LiqVehiculoTerceroConDetalles, RutaLogistica } from '@/types'
 
 // Schema de validacion
@@ -64,6 +70,7 @@ const viajeAdicionalSchema = z.object({
   ruta_id: z.string().optional(),
   destino: z.string().optional(),
   fecha: z.date({ message: 'Selecciona una fecha' }),
+  dia_ciclo: z.number().min(1).optional(), // Día del ciclo para rutas de múltiples días
   costo_combustible: z.number().min(0),
   costo_peajes: z.number().min(0),
   costo_flete_adicional: z.number().min(0),
@@ -99,6 +106,7 @@ interface ViajeManualFormProps {
     fecha: string
     ruta_programada_id?: string
     destino?: string
+    dia_ciclo?: number
     costo_combustible: number
     costo_peajes: number
     costo_flete_adicional: number
@@ -121,6 +129,9 @@ export function ViajeManualForm({
   const [open, setOpen] = useState(false)
   const [paso, setPaso] = useState<Paso>(1)
   const [cargandoCostos, setCargandoCostos] = useState(false)
+  const [datosRutaActual, setDatosRutaActual] = useState<DatosRutaPlanificacion | undefined>()
+  const diasCiclo = obtenerDiasCiclo(datosRutaActual)
+  const infoDiasCiclo = obtenerInfoDiasCiclo(datosRutaActual)
 
   const { data: rutasLogisticas = [] } = useRutasLogisticas()
 
@@ -131,6 +142,7 @@ export function ViajeManualForm({
       tipo_ruta: 'existente',
       ruta_id: '',
       destino: '',
+      dia_ciclo: undefined,
       costo_combustible: 0,
       costo_peajes: 0,
       costo_flete_adicional: 0,
@@ -168,10 +180,14 @@ export function ViajeManualForm({
   }, [rutasLogisticas, vehiculoSeleccionado])
 
   const rutaId = form.watch('ruta_id')
+  const diaCicloWatch = form.watch('dia_ciclo')
 
   // Función para cargar costos de planificación cuando se selecciona una ruta existente
-  const cargarCostosDeRuta = useCallback(async (rutaIdSeleccionada: string) => {
-    if (!escenarioId || !rutaIdSeleccionada) return
+  const cargarCostosDeRuta = useCallback(async (rutaIdSeleccionada: string, diaCicloParam?: number) => {
+    if (!escenarioId || !rutaIdSeleccionada) {
+      setDatosRutaActual(undefined)
+      return
+    }
 
     setCargandoCostos(true)
     try {
@@ -188,6 +204,7 @@ export function ViajeManualForm({
 
       if (error || !planificacion) {
         // No hay planificación para esta ruta, los costos quedan en 0
+        setDatosRutaActual(undefined)
         return
       }
 
@@ -197,10 +214,17 @@ export function ViajeManualForm({
         peajesCiclo: planificacion.peajes_ciclo || 0,
         frecuencia: planificacion.frecuencia || 'quincenal',
       }
+      setDatosRutaActual(datosRuta)
 
-      // Usar calcularCostosViaje con usarPrimerDiaSiFalta=true
-      // Esto obtiene costos promedio de la ruta independiente del día
-      const costos = calcularCostosViaje(datosRuta, 1, true)
+      // Si la ruta tiene múltiples días, preseleccionar día 1 si no hay uno seleccionado
+      const numDias = datosRuta.costos.length
+      const diaAUsar = diaCicloParam ?? (numDias > 1 ? 1 : undefined)
+      if (numDias > 1 && !diaCicloParam) {
+        form.setValue('dia_ciclo', 1)
+      }
+
+      // Calcular costos usando diaCiclo si está definido
+      const costos = calcularCostosViaje(datosRuta, 1, true, diaAUsar)
 
       // Autocompletar campos del formulario
       form.setValue('costo_combustible', Math.round(costos.costoCombustible))
@@ -219,12 +243,24 @@ export function ViajeManualForm({
     }
   }, [tipoRuta, rutaId, cargarCostosDeRuta])
 
+  // Efecto: recalcular costos cuando cambia el día del ciclo
+  useEffect(() => {
+    if (tipoRuta === 'existente' && rutaId && datosRutaActual && diaCicloWatch !== undefined) {
+      const costos = calcularCostosViaje(datosRutaActual, 1, true, diaCicloWatch)
+      form.setValue('costo_combustible', Math.round(costos.costoCombustible))
+      form.setValue('costo_peajes', Math.round(costos.costoPeajes))
+      form.setValue('costo_flete_adicional', Math.round(costos.costoAdicionales))
+      form.setValue('costo_pernocta', Math.round(costos.costoPernocta))
+    }
+  }, [diaCicloWatch, datosRutaActual, tipoRuta, rutaId, form])
+
   // Resetear formulario al cerrar
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (!isOpen) {
       form.reset()
       setPaso(1)
+      setDatosRutaActual(undefined)
     }
   }
 
@@ -276,6 +312,7 @@ export function ViajeManualForm({
       fecha: format(data.fecha, 'yyyy-MM-dd'),
       ruta_programada_id: data.tipo_ruta === 'existente' ? data.ruta_id : undefined,
       destino: data.tipo_ruta === 'libre' ? data.destino : undefined,
+      dia_ciclo: data.tipo_ruta === 'existente' && diasCiclo > 1 ? data.dia_ciclo : undefined,
       costo_combustible: data.costo_combustible,
       costo_peajes: data.costo_peajes,
       costo_flete_adicional: data.costo_flete_adicional,
@@ -284,6 +321,7 @@ export function ViajeManualForm({
     })
     form.reset()
     setPaso(1)
+    setDatosRutaActual(undefined)
     setOpen(false)
   }
 
@@ -488,6 +526,57 @@ export function ViajeManualForm({
                         </Select>
                         <FormDescription>
                           Rutas configuradas para {vehiculoSeleccionado?.placa}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Selector de día del ciclo (solo si la ruta tiene múltiples días) */}
+                {tipoRuta === 'existente' && rutaId && diasCiclo > 1 && (
+                  <FormField
+                    control={form.control}
+                    name="dia_ciclo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Día del ciclo *</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                            value={field.value?.toString() ?? '1'}
+                            className="flex flex-wrap gap-2"
+                          >
+                            {infoDiasCiclo.map((info) => (
+                              <div key={info.diaCiclo} className="flex items-center">
+                                <RadioGroupItem
+                                  value={info.diaCiclo.toString()}
+                                  id={`dia-ciclo-${info.diaCiclo}`}
+                                  className="peer sr-only"
+                                />
+                                <Label
+                                  htmlFor={`dia-ciclo-${info.diaCiclo}`}
+                                  className={cn(
+                                    'flex items-center gap-2 rounded-md border-2 border-muted bg-popover px-3 py-2 hover:bg-accent hover:text-accent-foreground cursor-pointer',
+                                    'peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary'
+                                  )}
+                                >
+                                  <span className="font-medium">Día {info.diaCiclo}</span>
+                                  <span className="text-xs text-muted-foreground capitalize">
+                                    ({info.diaNombre})
+                                  </span>
+                                  {info.tienePernocta && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Pernocta
+                                    </Badge>
+                                  )}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </FormControl>
+                        <FormDescription>
+                          Selecciona qué día del ciclo corresponde este viaje
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

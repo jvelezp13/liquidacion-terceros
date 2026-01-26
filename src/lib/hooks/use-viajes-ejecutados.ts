@@ -44,6 +44,7 @@ export interface UpsertViajeInput {
   requiere_pernocta?: boolean
   noches_pernocta?: number
   notas?: string
+  dia_ciclo?: number | null // Día del ciclo de la ruta (1, 2, etc). Útil para rutas corridas por festivo.
 }
 
 // Estados de viaje con labels (sin 'parcial' - eliminado)
@@ -214,6 +215,7 @@ export function useUpsertViaje() {
             requiere_pernocta: input.requiere_pernocta || false,
             noches_pernocta: input.noches_pernocta || 0,
             notas: input.notas,
+            dia_ciclo: input.dia_ciclo,
             costo_total:
               (input.costo_combustible || 0) +
               (input.costo_peajes || 0) +
@@ -239,6 +241,7 @@ export function useUpsertViaje() {
             costo_pernocta: input.costo_pernocta || 0,
             requiere_pernocta: input.requiere_pernocta || false,
             noches_pernocta: input.noches_pernocta || 0,
+            dia_ciclo: input.dia_ciclo,
             costo_total:
               (input.costo_combustible || 0) +
               (input.costo_peajes || 0) +
@@ -313,11 +316,13 @@ export function useUpdateEstadoViajeConVariacion() {
       estado,
       rutaVariacionId,
       quincenaId,
+      diaCiclo,
     }: {
       id: string
       estado: EstadoViaje
       rutaVariacionId: string | null
       quincenaId: string
+      diaCiclo?: number | null
     }): Promise<LiqViajeEjecutado> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
@@ -371,18 +376,24 @@ export function useUpdateEstadoViajeConVariacion() {
             peajesCiclo: planificacion.peajes_ciclo || 0,
             frecuencia: planificacion.frecuencia || 'semanal',
           }
-          // Para variaciones, usar primer día disponible si no hay costos del día exacto
-          // Los costos de una ruta son iguales independientemente del día que se ejecute
-          costos = calcularCostosViaje(datosRuta, diaISO, true)
+          // Si se especifica diaCiclo, usarlo para obtener costos del día correcto del ciclo
+          // Si no, para variaciones usar primer día disponible si no hay costos del día exacto
+          costos = calcularCostosViaje(
+            datosRuta,
+            diaISO,
+            true,
+            diaCiclo ?? undefined
+          )
         }
       }
 
-      // Actualizar el viaje con estado, ruta de variación y costos recalculados
+      // Actualizar el viaje con estado, ruta de variación, dia_ciclo y costos recalculados
       const { data, error } = await sb
         .from('liq_viajes_ejecutados')
         .update({
           estado,
           ruta_variacion_id: rutaVariacionId,
+          dia_ciclo: diaCiclo,
           costo_combustible: costos.costoCombustible,
           costo_peajes: costos.costoPeajes,
           costo_flete_adicional: costos.costoAdicionales,
@@ -431,6 +442,7 @@ export function useUpdateEstadoViajeConVariacion() {
                   estado: data.estado,
                   ruta_variacion_id: data.ruta_variacion_id,
                   ruta_variacion: rutaVariacionData,
+                  dia_ciclo: data.dia_ciclo,
                   costo_combustible: data.costo_combustible,
                   costo_peajes: data.costo_peajes,
                   costo_flete_adicional: data.costo_flete_adicional,
@@ -665,8 +677,14 @@ export function useRecalcularCostosViajes() {
         const fecha = new Date(viaje.fecha + 'T00:00:00')
         const diaISO = convertirDiaJSaISO(fecha.getDay())
 
-        // Calcular costos (usarPrimerDiaSiFalta=true para variaciones)
-        const costos = calcularCostosViaje(datosRuta, diaISO, true)
+        // Calcular costos. Si el viaje tiene dia_ciclo, usarlo para obtener costos correctos
+        // Esto es crucial para rutas corridas por festivo
+        const costos = calcularCostosViaje(
+          datosRuta,
+          diaISO,
+          true,
+          viaje.dia_ciclo ?? undefined
+        )
 
         // Construir registro completo para upsert (mantener campos originales + nuevos costos)
         viajesActualizados.push({
@@ -679,6 +697,7 @@ export function useRecalcularCostosViajes() {
           destino: viaje.destino,
           estado: viaje.estado,
           notas: viaje.notas,
+          dia_ciclo: viaje.dia_ciclo, // Mantener dia_ciclo si está definido
           // Costos recalculados
           costo_combustible: Math.round(costos.costoCombustible),
           costo_peajes: Math.round(costos.costoPeajes),

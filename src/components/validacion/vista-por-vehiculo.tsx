@@ -9,6 +9,7 @@ import { Truck, CheckCircle, XCircle, Route, Clock } from 'lucide-react'
 import { TarjetaViaje } from './tarjeta-viaje'
 import type { ViajeEjecutadoConDetalles } from '@/lib/hooks/use-viajes-ejecutados'
 import type { RutaLogistica, EstadoViaje } from '@/types'
+import type { MapaInfoDiasCiclo } from '@/lib/hooks/use-info-dias-ciclo'
 
 interface VehiculoStats {
   id: string
@@ -30,12 +31,14 @@ interface VistaPorVehiculoProps {
     viajeId: string,
     estado: EstadoViaje,
     rutaVariacionId: string | null,
-    quincenaId: string
+    quincenaId: string,
+    diaCiclo?: number | null
   ) => void
   onEliminar?: (viajeId: string) => void
   isUpdating?: boolean
   disabled?: boolean
   quincenaId: string
+  infoDiasCicloMap?: MapaInfoDiasCiclo
 }
 
 export function VistaPorVehiculo({
@@ -47,6 +50,7 @@ export function VistaPorVehiculo({
   isUpdating = false,
   disabled = false,
   quincenaId,
+  infoDiasCicloMap = new Map(),
 }: VistaPorVehiculoProps) {
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState<string | null>(null)
 
@@ -232,12 +236,14 @@ export function VistaPorVehiculo({
                       viaje={viaje}
                       rutas={rutas}
                       onCambiarEstado={(estado) => onCambiarEstado(viaje.id, estado, quincenaId)}
-                      onCambiarEstadoConVariacion={(estado, rutaVariacionId) =>
-                        onCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, quincenaId)
+                      onCambiarEstadoConVariacion={(estado, rutaVariacionId, diaCiclo) =>
+                        onCambiarEstadoConVariacion(viaje.id, estado, rutaVariacionId, quincenaId, diaCiclo)
                       }
                       onEliminar={onEliminar ? () => onEliminar(viaje.id) : undefined}
                       isUpdating={isUpdating}
                       disabled={disabled}
+                      infoDiasCiclo={infoDiasCicloMap.get(viaje.ruta_variacion_id || viaje.ruta_programada_id || '') || []}
+                      infoDiasCicloMap={infoDiasCicloMap}
                     />
                   </div>
                 ))}

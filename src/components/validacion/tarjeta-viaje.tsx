@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Collapsible,
   CollapsibleContent,
@@ -13,19 +16,32 @@ import {
   Route,
   Loader2,
   Trash2,
+  Calendar,
 } from 'lucide-react'
 import { SelectorRutaVariacion } from './selector-ruta-variacion'
 import type { ViajeEjecutadoConDetalles } from '@/lib/hooks/use-viajes-ejecutados'
 import type { RutaLogistica, EstadoViaje } from '@/types'
 
+// Tipo para información de días del ciclo
+interface InfoDiaCiclo {
+  diaCiclo: number
+  diaNombre: string
+  tienePernocta: boolean
+}
+
+// Mapa de ruta_id -> info de días del ciclo
+type MapaInfoDiasCiclo = Map<string, InfoDiaCiclo[]>
+
 interface TarjetaViajeProps {
   viaje: ViajeEjecutadoConDetalles
   rutas: RutaLogistica[]
   onCambiarEstado: (estado: EstadoViaje) => void
-  onCambiarEstadoConVariacion: (estado: EstadoViaje, rutaVariacionId: string | null) => void
+  onCambiarEstadoConVariacion: (estado: EstadoViaje, rutaVariacionId: string | null, diaCiclo?: number | null) => void
   onEliminar?: () => void
   isUpdating?: boolean
   disabled?: boolean
+  infoDiasCiclo?: InfoDiaCiclo[] // Info de días del ciclo de la ruta actual del viaje (para mostrar badge)
+  infoDiasCicloMap?: MapaInfoDiasCiclo // Mapa completo para verificar rutas al seleccionar variación
 }
 
 export function TarjetaViaje({
@@ -36,11 +52,27 @@ export function TarjetaViaje({
   onEliminar,
   isUpdating = false,
   disabled = false,
+  infoDiasCiclo = [],
+  infoDiasCicloMap = new Map(),
 }: TarjetaViajeProps) {
   const [expandido, setExpandido] = useState(viaje.estado === 'variacion' && !viaje.ruta_variacion_id)
   const [rutaVariacionSeleccionada, setRutaVariacionSeleccionada] = useState<string | null>(
     viaje.ruta_variacion_id || null
   )
+  const [diaCicloSeleccionado, setDiaCicloSeleccionado] = useState<number | undefined>(
+    viaje.dia_ciclo ?? undefined
+  )
+  // Estado para indicar que se seleccionó una ruta pero falta elegir el día
+  const [esperandoDiaCiclo, setEsperandoDiaCiclo] = useState(false)
+
+  // Info de días del ciclo para la ruta ACTUAL del viaje (para badge)
+  const tieneMultiplesDias = infoDiasCiclo.length > 1
+
+  // Info de días del ciclo para la ruta SELECCIONADA en el selector (puede ser diferente)
+  const infoDiasRutaSeleccionada = rutaVariacionSeleccionada
+    ? infoDiasCicloMap.get(rutaVariacionSeleccionada) || []
+    : []
+  const rutaSeleccionadaTieneMultiplesDias = infoDiasRutaSeleccionada.length > 1
 
   // Colores de fondo según estado
   const getColorFondo = () => {
@@ -69,9 +101,43 @@ export function TarjetaViaje({
   // Manejador para selección de ruta de variación
   const handleSeleccionarRuta = (rutaId: string | null) => {
     setRutaVariacionSeleccionada(rutaId)
-    if (rutaId) {
-      onCambiarEstadoConVariacion('variacion', rutaId)
+
+    if (!rutaId) return
+
+    // Verificar si la ruta seleccionada tiene múltiples días
+    const infoDiasRuta = infoDiasCicloMap.get(rutaId) || []
+    const tieneMultiples = infoDiasRuta.length > 1
+
+    if (tieneMultiples) {
+      // La ruta tiene múltiples días: NO guardar todavía
+      // Mostrar selector de día del ciclo primero
+      setEsperandoDiaCiclo(true)
+      setDiaCicloSeleccionado(1) // Preseleccionar día 1
+      // Mantener panel abierto para que seleccione el día
+    } else {
+      // Ruta de un solo día: guardar directamente
+      setEsperandoDiaCiclo(false)
+      onCambiarEstadoConVariacion('variacion', rutaId, undefined)
       setExpandido(false)
+    }
+  }
+
+  // Manejador para confirmar el día del ciclo (guarda la variación)
+  const handleConfirmarDiaCiclo = (diaCiclo: number) => {
+    setDiaCicloSeleccionado(diaCiclo)
+    if (rutaVariacionSeleccionada) {
+      onCambiarEstadoConVariacion('variacion', rutaVariacionSeleccionada, diaCiclo)
+      setEsperandoDiaCiclo(false)
+      setExpandido(false)
+    }
+  }
+
+  // Manejador para cambio de día del ciclo (para viajes ya guardados)
+  const handleCambiarDiaCiclo = (diaCiclo: number) => {
+    setDiaCicloSeleccionado(diaCiclo)
+    // Solo actualizar si ya hay un viaje guardado con variación
+    if (rutaVariacionSeleccionada && viaje.ruta_variacion_id) {
+      onCambiarEstadoConVariacion('variacion', rutaVariacionSeleccionada, diaCiclo)
     }
   }
 
@@ -150,6 +216,14 @@ export function TarjetaViaje({
           {obtenerRuta()}
         </span>
 
+        {/* Badge de día del ciclo (si aplica) */}
+        {viaje.dia_ciclo && infoDiasCiclo.length > 1 && (
+          <Badge variant="outline" className="shrink-0 text-xs gap-1 px-1.5">
+            <Calendar className="h-3 w-3" />
+            Día {viaje.dia_ciclo}/{infoDiasCiclo.length}
+          </Badge>
+        )}
+
         {/* Botones de estado compactos */}
         <div className="flex gap-0.5 shrink-0">
           <Button
@@ -215,7 +289,8 @@ export function TarjetaViaje({
 
       {/* Panel expandible para seleccionar ruta de variación */}
       <Collapsible open={expandido} onOpenChange={setExpandido}>
-        <CollapsibleContent className="mt-2 pt-2 border-t border-dashed">
+        <CollapsibleContent className="mt-2 pt-2 border-t border-dashed space-y-3">
+          {/* Paso 1: Selector de ruta */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground shrink-0">Ruta ejecutada:</span>
             <div className="flex-1">
@@ -228,6 +303,93 @@ export function TarjetaViaje({
               />
             </div>
           </div>
+
+          {/* Paso 2: Selector de día del ciclo (si la ruta seleccionada tiene múltiples días) */}
+          {esperandoDiaCiclo && rutaSeleccionadaTieneMultiplesDias && (
+            <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3 space-y-3">
+              <div className="text-xs font-medium text-blue-800">
+                Esta ruta tiene {infoDiasRutaSeleccionada.length} días. Selecciona cuál corresponde:
+              </div>
+              <RadioGroup
+                value={diaCicloSeleccionado?.toString() ?? '1'}
+                onValueChange={(value) => setDiaCicloSeleccionado(parseInt(value, 10))}
+                className="flex flex-wrap gap-2"
+              >
+                {infoDiasRutaSeleccionada.map((info) => (
+                  <div key={info.diaCiclo} className="flex items-center">
+                    <RadioGroupItem
+                      value={info.diaCiclo.toString()}
+                      id={`viaje-${viaje.id}-nuevo-dia-${info.diaCiclo}`}
+                      className="peer sr-only"
+                      disabled={disabled || isUpdating}
+                    />
+                    <Label
+                      htmlFor={`viaje-${viaje.id}-nuevo-dia-${info.diaCiclo}`}
+                      className={cn(
+                        'flex items-center gap-2 rounded-md border-2 px-3 py-2 text-sm cursor-pointer',
+                        'hover:bg-accent hover:text-accent-foreground',
+                        'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10'
+                      )}
+                    >
+                      <span className="font-medium">Día {info.diaCiclo}</span>
+                      <span className="text-xs text-muted-foreground capitalize">({info.diaNombre})</span>
+                      {info.tienePernocta && (
+                        <Badge variant="secondary" className="text-xs">
+                          Con pernocta
+                        </Badge>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+              <Button
+                size="sm"
+                onClick={() => handleConfirmarDiaCiclo(diaCicloSeleccionado ?? 1)}
+                disabled={disabled || isUpdating}
+                className="w-full"
+              >
+                Confirmar día {diaCicloSeleccionado ?? 1}
+              </Button>
+            </div>
+          )}
+
+          {/* Edición de día del ciclo (para viajes YA guardados con múltiples días) */}
+          {!esperandoDiaCiclo && viaje.ruta_variacion_id && tieneMultiplesDias && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground shrink-0">Día del ciclo:</span>
+              <RadioGroup
+                value={diaCicloSeleccionado?.toString() ?? '1'}
+                onValueChange={(value) => handleCambiarDiaCiclo(parseInt(value, 10))}
+                className="flex flex-wrap gap-1"
+              >
+                {infoDiasCiclo.map((info) => (
+                  <div key={info.diaCiclo} className="flex items-center">
+                    <RadioGroupItem
+                      value={info.diaCiclo.toString()}
+                      id={`viaje-${viaje.id}-dia-${info.diaCiclo}`}
+                      className="peer sr-only"
+                      disabled={disabled || isUpdating}
+                    />
+                    <Label
+                      htmlFor={`viaje-${viaje.id}-dia-${info.diaCiclo}`}
+                      className={cn(
+                        'flex items-center gap-1 rounded border px-2 py-1 text-xs cursor-pointer',
+                        'hover:bg-accent hover:text-accent-foreground',
+                        'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10'
+                      )}
+                    >
+                      <span>Día {info.diaCiclo}</span>
+                      {info.tienePernocta && (
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                          Pernocta
+                        </Badge>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+          )}
         </CollapsibleContent>
       </Collapsible>
     </div>
