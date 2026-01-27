@@ -65,7 +65,7 @@ export default function ComprobantesPage() {
     const viajesData = getViajesLiquidacion(liquidacion)
     const html = generarComprobanteHTML(liquidacion, quincena, viajesData)
     const placa = liquidacion.vehiculo_tercero?.placa || 'sin-placa'
-    const nombreArchivo = `comprobante-${placa}-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.html`
+    const nombreArchivo = `comprobante-${placa}-${quincena.año}-P${quincena.numero_periodo}.html`
     descargarHTML(html, nombreArchivo)
   }
 
@@ -79,7 +79,7 @@ export default function ComprobantesPage() {
   const handleDescargarResumen = () => {
     if (!quincena || consolidados.length === 0) return
     const html = generarResumenConsolidadoHTML(consolidados, quincena)
-    const nombreArchivo = `resumen-liquidacion-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.html`
+    const nombreArchivo = `resumen-liquidacion-${quincena.año}-P${quincena.numero_periodo}.html`
     descargarHTML(html, nombreArchivo)
   }
 
@@ -92,19 +92,19 @@ export default function ComprobantesPage() {
   const handleDescargarTodos = async () => {
     if (!quincena || !liquidaciones) return
 
-    // Generar todos los comprobantes
+    // Generar todos los comprobantes con nombres unicos que incluyen el periodo
     const archivos = liquidaciones.map((liq) => {
       const viajesData = getViajesLiquidacion(liq)
       const html = generarComprobanteHTML(liq, quincena, viajesData)
       const placa = liq.vehiculo_tercero?.placa || 'sin-placa'
       return {
-        nombre: `comprobante-${placa}.html`,
+        nombre: `comprobante-${placa}-${quincena.año}-P${quincena.numero_periodo}.html`,
         contenido: html,
       }
     })
 
     // Descargar como ZIP (1 archivo en lugar de N)
-    const nombreZip = `comprobantes-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.zip`
+    const nombreZip = `comprobantes-${quincena.año}-P${quincena.numero_periodo}.zip`
     await descargarComprobantesZIP(archivos, nombreZip)
   }
 
