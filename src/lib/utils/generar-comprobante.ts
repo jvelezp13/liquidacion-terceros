@@ -232,7 +232,7 @@ export function generarComprobanteHTML(
 
   ${viajesData && viajesData.desgloseRutas.length > 0 ? `
   <div class="desglose-section">
-    <h3>Desglose por Ruta ${calcularTotalKm(viajesData.desgloseRutas) > 0 ? `<span class="km-badge">${calcularTotalKm(viajesData.desgloseRutas).toLocaleString('es-CO')} km recorridos</span>` : ''}</h3>
+    <h3>Desglose por Ruta</h3>
     <table class="desglose-table">
       <thead>
         <tr>
@@ -283,14 +283,7 @@ export function generarComprobanteHTML(
     </thead>
     <tbody>
       <tr>
-        <td>
-          <strong>Flete base</strong><br>
-          <span style="color: #666; font-size: 11px;">
-            ${liquidacion.viajes_ejecutados} viajes ejecutados
-            ${(liquidacion.viajes_variacion ?? 0) > 0 ? ` + ${liquidacion.viajes_variacion} otra ruta` : ''}
-            ${(liquidacion.viajes_no_ejecutados ?? 0) > 0 ? ` - ${liquidacion.viajes_no_ejecutados} no ejecutados` : ''}
-          </span>
-        </td>
+        <td><strong>Flete base</strong></td>
         <td class="number">${formatCOP(liquidacion.flete_base)}</td>
       </tr>
       ${liquidacion.total_combustible > 0 ? `
@@ -332,8 +325,7 @@ export function generarComprobanteHTML(
       ${liquidacion.deducciones.map((ded) => `
       <tr class="deduccion-row">
         <td>
-          ${ded.tipo === 'retencion_1_porciento' ? 'Retencion 1%' : ded.tipo === 'anticipo' ? 'Anticipo' : 'Otro'}
-          ${ded.descripcion ? ` - ${ded.descripcion}` : ''}
+          ${ded.tipo === 'retencion_1_porciento' ? 'Retencion 1%' : ded.tipo === 'anticipo' ? `Anticipo${ded.descripcion ? ` - ${ded.descripcion}` : ''}` : `Otro${ded.descripcion ? ` - ${ded.descripcion}` : ''}`}
         </td>
         <td class="number">-${formatCOP(ded.monto)}</td>
       </tr>
