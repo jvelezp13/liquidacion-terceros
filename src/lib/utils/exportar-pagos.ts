@@ -57,9 +57,9 @@ function generarNumeroComprobante(
   quincena: LiqQuincena,
   indice: number
 ): string {
-  // Formato: {año}{mes}Q{quincena}-{secuencial}
+  // Formato: {año}P{numero_periodo}-{secuencial}
   const secuencial = String(indice + 1).padStart(3, '0')
-  return `${quincena.año}${String(quincena.mes).padStart(2, '0')}Q${quincena.quincena}-${secuencial}`
+  return `${quincena.año}P${String(quincena.numero_periodo).padStart(2, '0')}-${secuencial}`
 }
 
 // Formatear fecha a DD/MM/YYYY (formato requerido por Payana)

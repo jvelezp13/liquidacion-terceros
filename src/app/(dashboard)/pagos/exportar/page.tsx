@@ -89,7 +89,7 @@ function ExportarPagosContent() {
   const handleDescargar = () => {
     if (!quincena || filasPayana.length === 0) return
     const csv = generarCSV(medioPago, filasPayana)
-    const nombreArchivo = `${medioPago}-${quincena.año}-${quincena.mes}-Q${quincena.quincena}.csv`
+    const nombreArchivo = `${medioPago}-${quincena.año}-P${quincena.numero_periodo}.csv`
     descargarCSV(csv, nombreArchivo)
     toast.success(`Archivo ${NOMBRES_MEDIOS[medioPago]} exportado`)
   }
