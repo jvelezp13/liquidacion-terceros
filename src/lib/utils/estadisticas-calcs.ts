@@ -14,11 +14,10 @@ export interface DatosResumen {
 }
 
 export interface DatosEvolucion {
-  quincenaLabel: string
+  periodoLabel: string
   quincenaId: string
   año: number
-  mes: number
-  quincena: number
+  numeroPeriodo: number
   totalPagado: number
   viajesEjecutados: number
   viajesNoEjecutados: number
@@ -107,18 +106,12 @@ export function calcularVariacionPorcentual(
   return Math.round(((valorActual - valorAnterior) / valorAnterior) * 100)
 }
 
-// Generar label de quincena (ej: "Q1 Ene", "Q2 Feb")
-export function generarQuincenaLabel(
+// Generar label de periodo (ej: "P1", "P2", "P3")
+export function generarPeriodoLabel(
   año: number,
-  mes: number,
-  quincena: number
+  numeroPeriodo: number
 ): string {
-  const meses = [
-    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
-  ]
-  const mesLabel = meses[mes - 1] || 'N/A'
-  return `Q${quincena} ${mesLabel}`
+  return `P${numeroPeriodo}`
 }
 
 // Calcular desglose porcentual de costos

@@ -6,7 +6,7 @@ import { useEscenarioActivo } from './use-escenario-activo'
 import {
   calcularCostoPorViaje,
   calcularTasaCumplimiento,
-  generarQuincenaLabel,
+  generarPeriodoLabel,
   type DatosResumen,
   type DatosEvolucion,
   type DatosContratista,
@@ -154,12 +154,11 @@ export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
       // Obtener quincenas ordenadas
       const { data: quincenas, error: quincenasError } = await sb
         .from('liq_quincenas')
-        .select('id, año, mes, quincena')
+        .select('id, año, numero_periodo')
         .eq('escenario_id', escenario.id)
         .in('estado', ['liquidado', 'pagado'])
         .order('año')
-        .order('mes')
-        .order('quincena')
+        .order('numero_periodo')
 
       if (quincenasError) throw quincenasError
       if (!quincenas || quincenas.length === 0) return []
@@ -196,16 +195,15 @@ export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
       }
 
       // Construir resultados
-      const resultados: DatosEvolucion[] = (quincenas as { id: string; año: number; mes: number; quincena: number }[]).map((q) => {
+      const resultados: DatosEvolucion[] = (quincenas as { id: string; año: number; numero_periodo: number }[]).map((q) => {
         const totalPagado = pagosPorQuincena.get(q.id) || 0
         const viajes = viajesPorQuincena.get(q.id) || { ejecutados: 0, variacion: 0, noEjecutados: 0 }
 
         return {
-          quincenaLabel: generarQuincenaLabel(q.año, q.mes, q.quincena),
+          periodoLabel: generarPeriodoLabel(q.año, q.numero_periodo),
           quincenaId: q.id,
           año: q.año,
-          mes: q.mes,
-          quincena: q.quincena,
+          numeroPeriodo: q.numero_periodo,
           totalPagado,
           viajesEjecutados: viajes.ejecutados,
           viajesNoEjecutados: viajes.noEjecutados,

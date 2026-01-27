@@ -142,7 +142,7 @@ export function EvolucionChart({ data, isLoading }: EvolucionChartProps) {
           <ComposedChart data={data}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
-              dataKey="quincenaLabel"
+              dataKey="periodoLabel"
               tick={{ fontSize: 12 }}
               tickLine={false}
             />
