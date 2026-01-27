@@ -43,6 +43,7 @@ export interface UpsertViajeInput {
   costo_pernocta?: number
   requiere_pernocta?: boolean
   noches_pernocta?: number
+  km_recorridos?: number
   notas?: string
   dia_ciclo?: number | null // Día del ciclo de la ruta (1, 2, etc). Útil para rutas corridas por festivo.
 }
@@ -201,26 +202,36 @@ export function useUpsertViaje() {
         .single()
 
       if (existente) {
+        // Obtener viaje actual para preservar costos si no vienen en el input
+        const { data: viajeActual } = await sb
+          .from('liq_viajes_ejecutados')
+          .select('*')
+          .eq('id', (existente as { id: string }).id)
+          .single()
+
+        // Usar valores del input si están definidos, sino mantener los existentes
+        const costoCombustible = input.costo_combustible ?? viajeActual?.costo_combustible ?? 0
+        const costoPeajes = input.costo_peajes ?? viajeActual?.costo_peajes ?? 0
+        const costoFleteAdicional = input.costo_flete_adicional ?? viajeActual?.costo_flete_adicional ?? 0
+        const costoPernocta = input.costo_pernocta ?? viajeActual?.costo_pernocta ?? 0
+
         // Actualizar
         const { data, error } = await sb
           .from('liq_viajes_ejecutados')
           .update({
-            ruta_programada_id: input.ruta_programada_id,
-            destino: input.destino,
-            estado: input.estado || 'pendiente',
-            costo_combustible: input.costo_combustible || 0,
-            costo_peajes: input.costo_peajes || 0,
-            costo_flete_adicional: input.costo_flete_adicional || 0,
-            costo_pernocta: input.costo_pernocta || 0,
-            requiere_pernocta: input.requiere_pernocta || false,
-            noches_pernocta: input.noches_pernocta || 0,
-            notas: input.notas,
-            dia_ciclo: input.dia_ciclo,
-            costo_total:
-              (input.costo_combustible || 0) +
-              (input.costo_peajes || 0) +
-              (input.costo_flete_adicional || 0) +
-              (input.costo_pernocta || 0),
+            ruta_programada_id: input.ruta_programada_id ?? viajeActual?.ruta_programada_id,
+            destino: input.destino ?? viajeActual?.destino,
+            estado: input.estado ?? viajeActual?.estado ?? 'pendiente',
+            costo_combustible: costoCombustible,
+            costo_peajes: costoPeajes,
+            costo_flete_adicional: costoFleteAdicional,
+            costo_pernocta: costoPernocta,
+            requiere_pernocta: input.requiere_pernocta ?? viajeActual?.requiere_pernocta ?? false,
+            noches_pernocta: input.noches_pernocta ?? viajeActual?.noches_pernocta ?? 0,
+            km_recorridos: input.km_recorridos ?? viajeActual?.km_recorridos ?? 0,
+            notas: input.notas ?? viajeActual?.notas,
+            dia_ciclo: input.dia_ciclo ?? viajeActual?.dia_ciclo,
+            costo_total: costoCombustible + costoPeajes + costoFleteAdicional + costoPernocta,
           })
           .eq('id', (existente as { id: string }).id)
           .select()
