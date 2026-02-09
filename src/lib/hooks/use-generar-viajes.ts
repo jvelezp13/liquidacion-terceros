@@ -48,7 +48,7 @@ export function useGenerarViajesDesdeRutas() {
       quincenaId: string
       fechaInicio: string
       fechaFin: string
-      escenarioId?: string
+      escenarioId: string // Requerido para cargar costos de planificacion
     }): Promise<LiqViajeEjecutado[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
@@ -98,25 +98,30 @@ export function useGenerarViajesDesdeRutas() {
       // ========================================
       const datosPorRuta = new Map<string, DatosRutaPlanificacion>()
 
-      if (escenarioId && rutasUnicas.size > 0) {
-        const { data: planificaciones } = await sb
-          .from('planificacion_lejanias')
-          .select('ruta_id, costos_por_dia, frecuencia, peajes_ciclo')
-          .eq('escenario_id', escenarioId)
-          .eq('tipo', 'logistico')
-          .in('ruta_id', Array.from(rutasUnicas))
+      const { data: planificaciones } = await sb
+        .from('planificacion_lejanias')
+        .select('ruta_id, costos_por_dia, frecuencia, peajes_ciclo')
+        .eq('escenario_id', escenarioId)
+        .eq('tipo', 'logistico')
+        .in('ruta_id', Array.from(rutasUnicas))
 
-        if (planificaciones) {
-          for (const plan of planificaciones) {
-            if (plan.ruta_id && plan.costos_por_dia && Array.isArray(plan.costos_por_dia)) {
-              datosPorRuta.set(plan.ruta_id, {
-                costos: plan.costos_por_dia as CostoDiaPlanificacion[],
-                peajesCiclo: plan.peajes_ciclo || 0,
-                frecuencia: plan.frecuencia || 'semanal',
-              })
-            }
+      if (planificaciones) {
+        for (const plan of planificaciones) {
+          if (plan.ruta_id && plan.costos_por_dia && Array.isArray(plan.costos_por_dia)) {
+            datosPorRuta.set(plan.ruta_id, {
+              costos: plan.costos_por_dia as CostoDiaPlanificacion[],
+              peajesCiclo: plan.peajes_ciclo || 0,
+              frecuencia: plan.frecuencia || 'semanal',
+            })
           }
         }
+      }
+
+      // Validar que se encontraron datos de planificacion
+      if (datosPorRuta.size === 0) {
+        throw new Error(
+          'No se encontraron datos de planificacion para las rutas. Verifica que las rutas tengan costos configurados en PlaneacionLogi.'
+        )
       }
 
       // ========================================

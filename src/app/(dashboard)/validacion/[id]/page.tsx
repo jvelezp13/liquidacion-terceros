@@ -151,14 +151,17 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
 
   // Generar viajes desde rutas programadas
   const handleGenerarViajes = () => {
-    if (!quincena) return
+    if (!quincena || !escenario?.id) {
+      toast.error('No se puede generar viajes: escenario no disponible')
+      return
+    }
 
     generarViajesMutation.mutate(
       {
         quincenaId: quincena.id,
         fechaInicio: quincena.fecha_inicio,
         fechaFin: quincena.fecha_fin,
-        escenarioId: escenario?.id, // Para obtener costos de planificación
+        escenarioId: escenario.id,
       },
       {
         onSuccess: (viajesCreados) => {
@@ -413,20 +416,22 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
               variant="outline"
               size="sm"
               onClick={handleGenerarViajes}
-              disabled={generarViajesMutation.isPending}
+              disabled={generarViajesMutation.isPending || escenarioLoading || !escenario?.id}
             >
               {generarViajesMutation.isPending ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : escenarioLoading ? (
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
               ) : (
                 <RefreshCw className="mr-1 h-3 w-3" />
               )}
-              Generar viajes
+              {escenarioLoading ? 'Cargando escenario...' : 'Generar viajes'}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleRecalcularCostos}
-              disabled={recalcularCostosMutation.isPending || viajes.length === 0}
+              disabled={recalcularCostosMutation.isPending || viajes.length === 0 || escenarioLoading || !escenario?.id}
             >
               {recalcularCostosMutation.isPending ? (
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
