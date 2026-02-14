@@ -30,7 +30,79 @@ export interface EstadisticasFilters {
 // Tipo para preset de rango
 export type RangoPreset = 'este-mes' | 'ultimo-trimestre' | 'este-año' | 'todo'
 
-// Hook para resumen general (KPIs)
+// ============================================================================
+// HELPERS COMPARTIDOS
+// ============================================================================
+
+interface QuincenaFiltrada {
+  id: string
+  año: number
+  mes: number
+  quincena: number
+  numero_periodo: number
+}
+
+/**
+ * Obtiene quincenas del escenario filtradas por rango temporal (año + mes).
+ * Filtra por año en la query de Supabase, y refina por mes en JS
+ * (porque Supabase no soporta WHERE (año, mes) >= (X, Y) nativamente).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function obtenerQuincenasFiltradas(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  escenarioId: string,
+  filters: EstadisticasFilters
+): Promise<QuincenaFiltrada[]> {
+  let query = sb
+    .from('liq_quincenas')
+    .select('id, año, mes, quincena, numero_periodo')
+    .eq('escenario_id', escenarioId)
+    .in('estado', ['liquidado', 'pagado'])
+    .order('año')
+    .order('numero_periodo')
+
+  // Filtro grueso por año en Supabase
+  if (filters.añoDesde != null) query = query.gte('año', filters.añoDesde)
+  if (filters.añoHasta != null) query = query.lte('año', filters.añoHasta)
+
+  const { data, error } = await query
+  if (error) throw error
+  if (!data || data.length === 0) return []
+
+  let resultado = data as QuincenaFiltrada[]
+
+  // Filtro fino por mes (combina año + mes para rango correcto)
+  if (filters.mesDesde != null && filters.añoDesde != null) {
+    resultado = resultado.filter(q =>
+      q.año > filters.añoDesde! || (q.año === filters.añoDesde! && q.mes >= filters.mesDesde!)
+    )
+  }
+  if (filters.mesHasta != null && filters.añoHasta != null) {
+    resultado = resultado.filter(q =>
+      q.año < filters.añoHasta! || (q.año === filters.añoHasta! && q.mes <= filters.mesHasta!)
+    )
+  }
+
+  return resultado
+}
+
+/**
+ * Obtiene IDs de vehiculos terceros de un contratista especifico.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function obtenerVtIdsContratista(sb: any, contratistaId: string): Promise<string[]> {
+  const { data } = await sb
+    .from('liq_vehiculos_terceros')
+    .select('id')
+    .eq('contratista_id', contratistaId)
+  return (data || []).map((v: { id: string }) => v.id)
+}
+
+// ============================================================================
+// HOOK: RESUMEN (KPIs)
+// ============================================================================
+
 export function useEstadisticasResumen(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
@@ -43,25 +115,10 @@ export function useEstadisticasResumen(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas con estado liquidado o pagado
-      let quincenasQuery = sb
-        .from('liq_quincenas')
-        .select('id, año, mes, quincena')
-        .eq('escenario_id', escenario.id)
-        .in('estado', ['liquidado', 'pagado'])
+      // Quincenas filtradas por rango temporal
+      const quincenas = await obtenerQuincenasFiltradas(sb, escenario.id, filters)
 
-      // Aplicar filtros de rango si existen
-      if (filters.añoDesde) {
-        quincenasQuery = quincenasQuery.gte('año', filters.añoDesde)
-      }
-      if (filters.añoHasta) {
-        quincenasQuery = quincenasQuery.lte('año', filters.añoHasta)
-      }
-
-      const { data: quincenas, error: quincenasError } = await quincenasQuery
-
-      if (quincenasError) throw quincenasError
-      if (!quincenas || quincenas.length === 0) {
+      if (quincenas.length === 0) {
         return {
           totalPagado: 0,
           totalQuincenas: 0,
@@ -72,14 +129,19 @@ export function useEstadisticasResumen(filters: EstadisticasFilters = {}) {
         }
       }
 
-      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
+      const quincenaIds = quincenas.map(q => q.id)
 
-      // Obtener total pagado de historial
-      const { data: pagos, error: pagosError } = await sb
+      // Obtener total pagado (con filtro de contratista si aplica)
+      let pagosQuery = sb
         .from('liq_historial_pagos')
         .select('monto_total')
         .in('quincena_id', quincenaIds)
 
+      if (filters.contratistaId) {
+        pagosQuery = pagosQuery.eq('contratista_id', filters.contratistaId)
+      }
+
+      const { data: pagos, error: pagosError } = await pagosQuery
       if (pagosError) throw pagosError
 
       const totalPagado = (pagos || []).reduce(
@@ -87,31 +149,30 @@ export function useEstadisticasResumen(filters: EstadisticasFilters = {}) {
         0
       )
 
-      // Obtener estadisticas de viajes
+      // Obtener estadisticas de viajes (con filtro de contratista si aplica)
       let viajesQuery = sb
         .from('liq_viajes_ejecutados')
         .select('estado')
         .in('quincena_id', quincenaIds)
 
-      if (filters.contratistaId || filters.vehiculoId) {
-        // Necesitamos filtrar por vehiculo tercero
-        const { data: vehiculosTerceros } = await sb
-          .from('liq_vehiculos_terceros')
-          .select('id')
-          .match(
-            filters.contratistaId
-              ? { contratista_id: filters.contratistaId }
-              : {}
-          )
-
-        if (vehiculosTerceros) {
-          const vtIds = vehiculosTerceros.map((vt: { id: string }) => vt.id)
+      if (filters.contratistaId) {
+        const vtIds = await obtenerVtIdsContratista(sb, filters.contratistaId)
+        if (vtIds.length > 0) {
           viajesQuery = viajesQuery.in('vehiculo_tercero_id', vtIds)
+        } else {
+          // Contratista sin vehiculos: 0 viajes
+          return {
+            totalPagado,
+            totalQuincenas: quincenas.length,
+            viajesEjecutados: 0,
+            viajesVariacion: 0,
+            viajesNoEjecutados: 0,
+            totalViajes: 0,
+          }
         }
       }
 
       const { data: viajes, error: viajesError } = await viajesQuery
-
       if (viajesError) throw viajesError
 
       const viajesEjecutados = (viajes || []).filter(
@@ -134,11 +195,14 @@ export function useEstadisticasResumen(filters: EstadisticasFilters = {}) {
       }
     },
     enabled: !!escenario?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutos de cache
+    staleTime: 5 * 60 * 1000,
   })
 }
 
-// Hook para evolucion temporal
+// ============================================================================
+// HOOK: EVOLUCION TEMPORAL
+// ============================================================================
+
 export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
@@ -151,31 +215,42 @@ export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas ordenadas
-      const { data: quincenas, error: quincenasError } = await sb
-        .from('liq_quincenas')
-        .select('id, año, numero_periodo')
-        .eq('escenario_id', escenario.id)
-        .in('estado', ['liquidado', 'pagado'])
-        .order('año')
-        .order('numero_periodo')
+      // Quincenas filtradas por rango temporal
+      const quincenas = await obtenerQuincenasFiltradas(sb, escenario.id, filters)
+      if (quincenas.length === 0) return []
 
-      if (quincenasError) throw quincenasError
-      if (!quincenas || quincenas.length === 0) return []
+      const quincenaIds = quincenas.map(q => q.id)
 
-      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
+      // VT IDs del contratista (si hay filtro)
+      let vtIds: string[] | null = null
+      if (filters.contratistaId) {
+        vtIds = await obtenerVtIdsContratista(sb, filters.contratistaId)
+        if (vtIds.length === 0) return []
+      }
 
-      // Batch query: todos los pagos de todas las quincenas
-      const { data: todosPagos } = await sb
+      // Batch query: pagos (con filtro contratista si aplica)
+      let pagosQuery = sb
         .from('liq_historial_pagos')
         .select('quincena_id, monto_total')
         .in('quincena_id', quincenaIds)
 
-      // Batch query: todos los viajes de todas las quincenas
-      const { data: todosViajes } = await sb
+      if (filters.contratistaId) {
+        pagosQuery = pagosQuery.eq('contratista_id', filters.contratistaId)
+      }
+
+      const { data: todosPagos } = await pagosQuery
+
+      // Batch query: viajes (con filtro contratista si aplica)
+      let viajesQuery = sb
         .from('liq_viajes_ejecutados')
         .select('quincena_id, estado')
         .in('quincena_id', quincenaIds)
+
+      if (vtIds) {
+        viajesQuery = viajesQuery.in('vehiculo_tercero_id', vtIds)
+      }
+
+      const { data: todosViajes } = await viajesQuery
 
       // Agrupar pagos por quincena
       const pagosPorQuincena = new Map<string, number>()
@@ -195,7 +270,7 @@ export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
       }
 
       // Construir resultados
-      const resultados: DatosEvolucion[] = (quincenas as { id: string; año: number; numero_periodo: number }[]).map((q) => {
+      const resultados: DatosEvolucion[] = quincenas.map((q) => {
         const totalPagado = pagosPorQuincena.get(q.id) || 0
         const viajes = viajesPorQuincena.get(q.id) || { ejecutados: 0, variacion: 0, noEjecutados: 0 }
 
@@ -219,7 +294,10 @@ export function useEstadisticasEvolucion(filters: EstadisticasFilters = {}) {
   })
 }
 
-// Hook para metricas por contratista
+// ============================================================================
+// HOOK: METRICAS POR CONTRATISTA
+// ============================================================================
+
 export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
@@ -232,19 +310,14 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas del escenario
-      const { data: quincenas } = await sb
-        .from('liq_quincenas')
-        .select('id')
-        .eq('escenario_id', escenario.id)
-        .in('estado', ['liquidado', 'pagado'])
+      // Quincenas filtradas por rango temporal
+      const quincenas = await obtenerQuincenasFiltradas(sb, escenario.id, filters)
+      if (quincenas.length === 0) return []
 
-      if (!quincenas || quincenas.length === 0) return []
+      const quincenaIds = quincenas.map(q => q.id)
 
-      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
-
-      // Obtener contratistas con sus vehiculos
-      const { data: contratistas, error: contratistasError } = await sb
+      // Obtener contratistas con sus vehiculos (filtrar por ID si aplica)
+      let contratistasQuery = sb
         .from('liq_contratistas')
         .select(`
           id,
@@ -252,13 +325,18 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
           vehiculos_terceros:liq_vehiculos_terceros(id)
         `)
 
+      if (filters.contratistaId) {
+        contratistasQuery = contratistasQuery.eq('id', filters.contratistaId)
+      }
+
+      const { data: contratistas, error: contratistasError } = await contratistasQuery
       if (contratistasError) throw contratistasError
       if (!contratistas) return []
 
       const contratistasList = contratistas as { id: string; nombre: string; vehiculos_terceros: { id: string }[] }[]
       const contratistaIds = contratistasList.map(c => c.id)
 
-      // Batch query: todos los pagos de todos los contratistas
+      // Batch query: pagos filtrados por quincenas y contratistas
       const { data: todosPagos } = await sb
         .from('liq_historial_pagos')
         .select('contratista_id, monto_total')
@@ -282,8 +360,8 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
         }
       }
 
-      // Batch query: todos los viajes de todos los vehiculos
-      let viajesPorContratista = new Map<string, { total: number; ejecutados: number; variacion: number }>()
+      // Batch query: viajes filtrados por quincenas y vehiculos
+      const viajesPorContratista = new Map<string, { total: number; ejecutados: number; variacion: number }>()
       if (allVtIds.length > 0) {
         const { data: todosViajes } = await sb
           .from('liq_viajes_ejecutados')
@@ -291,7 +369,6 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
           .in('vehiculo_tercero_id', allVtIds)
           .in('quincena_id', quincenaIds)
 
-        // Agrupar viajes por contratista
         for (const v of (todosViajes || []) as { vehiculo_tercero_id: string; estado: string }[]) {
           const contratistaId = vtIdToContratista.get(v.vehiculo_tercero_id)
           if (!contratistaId) continue
@@ -328,8 +405,10 @@ export function useEstadisticasContratistas(filters: EstadisticasFilters = {}) {
   })
 }
 
-// Hook para metricas por vehiculo
-// Corregido: ahora obtiene vehiculos desde los viajes del escenario (no todos los del tenant)
+// ============================================================================
+// HOOK: METRICAS POR VEHICULO
+// ============================================================================
+
 export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
@@ -342,23 +421,25 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // 1. Obtener quincenas del escenario activo
-      const { data: quincenas } = await sb
-        .from('liq_quincenas')
-        .select('id')
-        .eq('escenario_id', escenario.id)
-        .in('estado', ['liquidado', 'pagado'])
+      // Quincenas filtradas por rango temporal
+      const quincenas = await obtenerQuincenasFiltradas(sb, escenario.id, filters)
+      if (quincenas.length === 0) return []
 
-      if (!quincenas || quincenas.length === 0) return []
+      const quincenaIds = quincenas.map(q => q.id)
 
-      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
-
-      // 2. Obtener vehiculo_tercero_id unicos de viajes en esas quincenas
-      const { data: viajesConVehiculos } = await sb
+      // Obtener viajes de esas quincenas (con filtro contratista si aplica)
+      let viajesConVehiculosQuery = sb
         .from('liq_viajes_ejecutados')
         .select('vehiculo_tercero_id, estado')
         .in('quincena_id', quincenaIds)
 
+      if (filters.contratistaId) {
+        const vtIds = await obtenerVtIdsContratista(sb, filters.contratistaId)
+        if (vtIds.length === 0) return []
+        viajesConVehiculosQuery = viajesConVehiculosQuery.in('vehiculo_tercero_id', vtIds)
+      }
+
+      const { data: viajesConVehiculos } = await viajesConVehiculosQuery
       if (!viajesConVehiculos || viajesConVehiculos.length === 0) return []
 
       // Extraer IDs unicos de vehiculos terceros que tienen viajes
@@ -379,8 +460,7 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
         }
       }
 
-      // 3. Obtener detalles de esos vehiculos especificos
-      // Nota: placa esta directamente en liq_vehiculos_terceros (no en vehiculos)
+      // Obtener detalles de esos vehiculos especificos
       let vehiculosQuery = sb
         .from('liq_vehiculos_terceros')
         .select(`
@@ -396,7 +476,6 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       }
 
       const { data: vehiculos, error: vehiculosError } = await vehiculosQuery
-
       if (vehiculosError) throw vehiculosError
       if (!vehiculos) return []
 
@@ -410,7 +489,7 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
       // Obtener IDs de contratistas unicos
       const contratistaIds = [...new Set(vehiculosList.map(v => v.contratista_id))]
 
-      // Batch query: pagos por contratista
+      // Batch query: pagos por contratista (filtrados por quincenas)
       const { data: todosPagos } = await sb
         .from('liq_historial_pagos')
         .select('contratista_id, monto_total')
@@ -463,10 +542,23 @@ export function useEstadisticasVehiculos(filters: EstadisticasFilters = {}) {
   })
 }
 
-// Hook para desglose de costos
+// ============================================================================
+// HOOK: DESGLOSE DE COSTOS
+// ============================================================================
+
 export function useEstadisticasCostos(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
+
+  const DESGLOSE_VACIO: DesgloseCostos = {
+    fleteBases: 0,
+    combustible: 0,
+    peajes: 0,
+    pernocta: 0,
+    fletesAdicionales: 0,
+    deducciones: 0,
+    total: 0,
+  }
 
   return useQuery({
     queryKey: ['estadisticas-costos', escenario?.id, filters],
@@ -476,28 +568,13 @@ export function useEstadisticasCostos(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // Obtener quincenas
-      const { data: quincenas } = await sb
-        .from('liq_quincenas')
-        .select('id')
-        .eq('escenario_id', escenario.id)
-        .in('estado', ['liquidado', 'pagado'])
+      // Quincenas filtradas por rango temporal
+      const quincenas = await obtenerQuincenasFiltradas(sb, escenario.id, filters)
+      if (quincenas.length === 0) return DESGLOSE_VACIO
 
-      if (!quincenas || quincenas.length === 0) {
-        return {
-          fleteBases: 0,
-          combustible: 0,
-          peajes: 0,
-          pernocta: 0,
-          fletesAdicionales: 0,
-          deducciones: 0,
-          total: 0,
-        }
-      }
+      const quincenaIds = quincenas.map(q => q.id)
 
-      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
-
-      // Obtener liquidaciones aprobadas
+      // Obtener liquidaciones aprobadas (con filtros)
       let liquidacionesQuery = sb
         .from('liq_liquidaciones')
         .select(`
@@ -511,24 +588,24 @@ export function useEstadisticasCostos(filters: EstadisticasFilters = {}) {
         .in('quincena_id', quincenaIds)
         .eq('estado', 'aprobado')
 
+      // Filtro por vehiculo especifico
       if (filters.vehiculoId) {
         liquidacionesQuery = liquidacionesQuery.eq('vehiculo_tercero_id', filters.vehiculoId)
       }
 
-      const { data: liquidaciones, error } = await liquidacionesQuery
-
-      if (error) throw error
-      if (!liquidaciones || liquidaciones.length === 0) {
-        return {
-          fleteBases: 0,
-          combustible: 0,
-          peajes: 0,
-          pernocta: 0,
-          fletesAdicionales: 0,
-          deducciones: 0,
-          total: 0,
+      // Filtro por contratista (via vehiculos terceros)
+      if (filters.contratistaId && !filters.vehiculoId) {
+        const vtIds = await obtenerVtIdsContratista(sb, filters.contratistaId)
+        if (vtIds.length > 0) {
+          liquidacionesQuery = liquidacionesQuery.in('vehiculo_tercero_id', vtIds)
+        } else {
+          return DESGLOSE_VACIO
         }
       }
+
+      const { data: liquidaciones, error } = await liquidacionesQuery
+      if (error) throw error
+      if (!liquidaciones || liquidaciones.length === 0) return DESGLOSE_VACIO
 
       // Sumar todos los costos
       const desglose = (liquidaciones as {
@@ -548,18 +625,10 @@ export function useEstadisticasCostos(filters: EstadisticasFilters = {}) {
           deducciones: acc.deducciones + (l.total_deducciones || 0),
           total: 0,
         }),
-        {
-          fleteBases: 0,
-          combustible: 0,
-          peajes: 0,
-          pernocta: 0,
-          fletesAdicionales: 0,
-          deducciones: 0,
-          total: 0,
-        }
+        { ...DESGLOSE_VACIO }
       )
 
-      // Calcular total (sin restar deducciones, es el bruto)
+      // Calcular total bruto (sin restar deducciones)
       desglose.total =
         desglose.fleteBases +
         desglose.combustible +
@@ -574,7 +643,10 @@ export function useEstadisticasCostos(filters: EstadisticasFilters = {}) {
   })
 }
 
-// Hook para analisis de rutas
+// ============================================================================
+// HOOK: ANALISIS DE RUTAS
+// ============================================================================
+
 export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
   const supabase = createClient()
   const { data: escenario } = useEscenarioActivo()
@@ -587,19 +659,14 @@ export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
-      // 1. Obtener quincenas del escenario activo
-      const { data: quincenas } = await sb
-        .from('liq_quincenas')
-        .select('id')
-        .eq('escenario_id', escenario.id)
-        .in('estado', ['liquidado', 'pagado'])
+      // Quincenas filtradas por rango temporal
+      const quincenas = await obtenerQuincenasFiltradas(sb, escenario.id, filters)
+      if (quincenas.length === 0) return []
 
-      if (!quincenas || quincenas.length === 0) return []
+      const quincenaIds = quincenas.map(q => q.id)
 
-      const quincenaIds = quincenas.map((q: { id: string }) => q.id)
-
-      // 2. Obtener viajes con datos de ruta (ruta_programada_id o ruta_variacion_id)
-      const { data: viajes } = await sb
+      // Obtener viajes con datos de ruta (con filtro contratista si aplica)
+      let viajesQuery = sb
         .from('liq_viajes_ejecutados')
         .select(`
           estado,
@@ -613,9 +680,16 @@ export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
         .in('quincena_id', quincenaIds)
         .in('estado', ['ejecutado', 'variacion'])
 
+      if (filters.contratistaId) {
+        const vtIds = await obtenerVtIdsContratista(sb, filters.contratistaId)
+        if (vtIds.length === 0) return []
+        viajesQuery = viajesQuery.in('vehiculo_tercero_id', vtIds)
+      }
+
+      const { data: viajes } = await viajesQuery
       if (!viajes || viajes.length === 0) return []
 
-      // 3. Agrupar viajes por ruta (usar variacion si existe, sino programada)
+      // Agrupar viajes por ruta (usar variacion si existe, sino programada)
       const datosPorRuta = new Map<string, {
         viajes: number
         kmTotal: number
@@ -632,7 +706,6 @@ export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
         costo_peajes: number | null
         costo_total: number | null
       }[]) {
-        // Usar la ruta de variacion si existe, sino la programada
         const rutaId = v.ruta_variacion_id || v.ruta_programada_id
         if (!rutaId) continue
 
@@ -655,7 +728,7 @@ export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
 
       if (datosPorRuta.size === 0) return []
 
-      // 4. Obtener nombres de rutas
+      // Obtener nombres de rutas
       const rutaIds = [...datosPorRuta.keys()]
       const { data: rutas } = await sb
         .from('rutas_logisticas')
@@ -664,7 +737,7 @@ export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
 
       if (!rutas) return []
 
-      // 5. Construir resultados
+      // Construir resultados
       const resultados: DatosRuta[] = (rutas as { id: string; nombre: string; codigo: string | null }[])
         .map(r => {
           const datos = datosPorRuta.get(r.id)!
@@ -689,7 +762,10 @@ export function useEstadisticasRutas(filters: EstadisticasFilters = {}) {
   })
 }
 
-// Hook principal que combina todos los datos
+// ============================================================================
+// HOOK COMBINADO (conveniencia)
+// ============================================================================
+
 export function useEstadisticas(filters: EstadisticasFilters = {}) {
   const resumen = useEstadisticasResumen(filters)
   const evolucion = useEstadisticasEvolucion(filters)
