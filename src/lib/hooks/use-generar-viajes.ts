@@ -105,15 +105,14 @@ export function useGenerarViajesDesdeRutas() {
         .eq('tipo', 'logistico')
         .in('ruta_id', Array.from(rutasUnicas))
 
-      if (planificaciones) {
-        for (const plan of planificaciones) {
-          if (plan.ruta_id && plan.costos_por_dia && Array.isArray(plan.costos_por_dia)) {
-            datosPorRuta.set(plan.ruta_id, {
-              costos: plan.costos_por_dia as CostoDiaPlanificacion[],
-              peajesCiclo: plan.peajes_ciclo || 0,
-              frecuencia: plan.frecuencia || 'semanal',
-            })
-          }
+      // Construir mapa de planificaciones (alineado con useRecalcularCostosViajes)
+      for (const plan of planificaciones || []) {
+        if (plan.ruta_id) {
+          datosPorRuta.set(plan.ruta_id, {
+            costos: (plan.costos_por_dia || []) as CostoDiaPlanificacion[],
+            peajesCiclo: plan.peajes_ciclo || 0,
+            frecuencia: plan.frecuencia || 'semanal',
+          })
         }
       }
 
@@ -121,6 +120,29 @@ export function useGenerarViajesDesdeRutas() {
       if (datosPorRuta.size === 0) {
         throw new Error(
           'No se encontraron datos de planificacion para las rutas. Verifica que las rutas tengan costos configurados en PlaneacionLogi.'
+        )
+      }
+
+      // Validar rutas individuales: advertir si alguna ruta no tiene datos o tiene costos vacios
+      const rutasSinDatos: string[] = []
+      for (const rutaId of rutasUnicas) {
+        const datos = datosPorRuta.get(rutaId)
+        if (!datos || datos.costos.length === 0) {
+          rutasSinDatos.push(rutaId)
+        }
+      }
+
+      if (rutasSinDatos.length > 0) {
+        // Obtener nombres de las rutas para el mensaje de error
+        const { data: rutasInfo } = await sb
+          .from('rutas_logisticas')
+          .select('id, nombre')
+          .in('id', rutasSinDatos)
+
+        const nombres = rutasInfo?.map((r: { nombre: string }) => r.nombre).join(', ') || rutasSinDatos.join(', ')
+        throw new Error(
+          `Las siguientes rutas no tienen costos calculados en el planificador: ${nombres}. ` +
+          'Recalcula los costos en PlaneacionLogi antes de generar viajes.'
         )
       }
 
@@ -187,7 +209,9 @@ export function useGenerarViajesDesdeRutas() {
           const diasCiclo = datosRuta?.costos?.length || 0
           const diaCiclo = diasCiclo > 1 ? diaCicloProgramado : null
 
-          const costos = calcularCostosViaje(datosRuta, diaISO, false, diaCiclo ?? undefined)
+          // usarPrimerDiaSiFalta=true: si el dia programado no coincide con el dia en costos_por_dia,
+          // usar el primer dia disponible (correcto para rutas de un solo dia)
+          const costos = calcularCostosViaje(datosRuta, diaISO, true, diaCiclo ?? undefined)
 
           viajesACrear.push({
             quincena_id: quincenaId,
