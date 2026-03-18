@@ -131,9 +131,3 @@ toast.success(toastMessages.success.guardado)
 import { LoadingState, LoadingTable } from '@/components/ui/loading-state'
 ```
 
-## Mejoras Recientes (Enero 2025)
-
-- Refactoring: dividir hooks grandes, extraer utils testeables
-- Testing: Vitest desde cero, 43 tests unitarios
-- Estandarización: loading states, formatters, toast messages
-- Reducción código: ~33% en hooks principales
