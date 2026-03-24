@@ -30,6 +30,13 @@ interface ViajeExistente {
   fecha: string
 }
 
+// Resultado de la generacion de viajes
+export interface ResultadoGeneracion {
+  viajes: LiqViajeEjecutado[]
+  viajesRecalculados: number  // cuantos se auto-corrigieron
+  rutasSinCostos: string[]    // nombres de rutas que siguen en $0
+}
+
 /**
  * Hook optimizado para generar viajes desde rutas programadas.
  * Reduce de ~200 queries a ~5 queries usando batch operations.
@@ -49,7 +56,7 @@ export function useGenerarViajesDesdeRutas() {
       fechaInicio: string
       fechaFin: string
       escenarioId: string // Requerido para cargar costos de planificacion
-    }): Promise<LiqViajeEjecutado[]> => {
+    }): Promise<ResultadoGeneracion> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
 
@@ -62,7 +69,7 @@ export function useGenerarViajesDesdeRutas() {
         .eq('activo', true)
 
       if (vehiculosError) throw vehiculosError
-      if (!vehiculos || vehiculos.length === 0) return []
+      if (!vehiculos || vehiculos.length === 0) return { viajes: [], viajesRecalculados: 0, rutasSinCostos: [] }
 
       const vehiculoIds = vehiculos.map((v: { id: string }) => v.id)
 
@@ -76,7 +83,7 @@ export function useGenerarViajesDesdeRutas() {
         .eq('activo', true)
 
       if (rutasError) throw rutasError
-      if (!todasRutasProgramadas || todasRutasProgramadas.length === 0) return []
+      if (!todasRutasProgramadas || todasRutasProgramadas.length === 0) return { viajes: [], viajesRecalculados: 0, rutasSinCostos: [] }
 
       // Organizar rutas por vehículo (incluyendo dia_ciclo)
       const rutasPorVehiculo = new Map<string, Map<number, DatosRutaProgramada>>()
@@ -232,7 +239,7 @@ export function useGenerarViajesDesdeRutas() {
         }
       }
 
-      if (viajesACrear.length === 0) return []
+      if (viajesACrear.length === 0) return { viajes: [], viajesRecalculados: 0, rutasSinCostos: [] }
 
       // ========================================
       // QUERY 5: INSERT batch de todos los viajes
@@ -247,7 +254,77 @@ export function useGenerarViajesDesdeRutas() {
         throw insertError
       }
 
-      return (viajesCreados || []) as LiqViajeEjecutado[]
+      const viajes = (viajesCreados || []) as LiqViajeEjecutado[]
+
+      // ========================================
+      // PASO 6: Auto-corregir viajes con costo $0
+      // Reutiliza datosPorRuta ya cargado en memoria (QUERY 3)
+      // ========================================
+      const viajesEnCero = viajes.filter((v) => !v.costo_total || v.costo_total === 0)
+
+      if (viajesEnCero.length === 0) {
+        return { viajes, viajesRecalculados: 0, rutasSinCostos: [] }
+      }
+
+      // Recalcular costos usando datos ya en memoria
+      const viajesCorregidos: Array<Record<string, unknown>> = []
+      const rutaIdsSinCorregir = new Set<string>()
+
+      for (const viaje of viajesEnCero) {
+        const rutaId = viaje.ruta_programada_id
+        if (!rutaId) continue
+
+        const datosRuta = datosPorRuta.get(rutaId)
+        const fecha = new Date(viaje.fecha + 'T00:00:00')
+        const diaISO = convertirDiaJSaISO(fecha.getDay())
+        const costos = calcularCostosViaje(datosRuta, diaISO, true, viaje.dia_ciclo ?? undefined)
+
+        if (costos.costoTotal > 0) {
+          viajesCorregidos.push({
+            id: viaje.id,
+            quincena_id: viaje.quincena_id,
+            vehiculo_tercero_id: viaje.vehiculo_tercero_id,
+            fecha: viaje.fecha,
+            ruta_programada_id: viaje.ruta_programada_id,
+            estado: viaje.estado,
+            dia_ciclo: viaje.dia_ciclo,
+            costo_combustible: Math.round(costos.costoCombustible),
+            costo_peajes: Math.round(costos.costoPeajes),
+            costo_flete_adicional: Math.round(costos.costoAdicionales),
+            costo_pernocta: Math.round(costos.costoPernocta),
+            requiere_pernocta: costos.requierePernocta,
+            noches_pernocta: costos.nochesPernocta,
+            km_recorridos: costos.kmRecorridos,
+            costo_total: Math.round(costos.costoTotal),
+          })
+        } else {
+          rutaIdsSinCorregir.add(rutaId)
+        }
+      }
+
+      // UPSERT batch de viajes corregidos (1 query extra)
+      if (viajesCorregidos.length > 0) {
+        await sb
+          .from('liq_viajes_ejecutados')
+          .upsert(viajesCorregidos, { onConflict: 'id' })
+      }
+
+      // Obtener nombres de rutas que siguen en $0
+      let rutasSinCostos: string[] = []
+      if (rutaIdsSinCorregir.size > 0) {
+        const { data: rutasInfo } = await sb
+          .from('rutas_logisticas')
+          .select('nombre')
+          .in('id', Array.from(rutaIdsSinCorregir))
+
+        rutasSinCostos = rutasInfo?.map((r: { nombre: string }) => r.nombre) || []
+      }
+
+      return {
+        viajes,
+        viajesRecalculados: viajesCorregidos.length,
+        rutasSinCostos,
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['viajes-ejecutados', variables.quincenaId] })

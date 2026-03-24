@@ -28,6 +28,7 @@ import {
   RefreshCw,
   CalendarDays,
   Calculator,
+  AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuincena, useUpdateEstadoQuincena, formatearQuincena } from '@/lib/hooks/use-quincenas'
@@ -149,6 +150,14 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     return stats
   }, [viajes])
 
+  // Viajes ejecutados con costo $0 (bloquea validacion)
+  const viajesConCostoCero = useMemo(() =>
+    viajes.filter((v) =>
+      v.estado === 'ejecutado' && (!v.costo_total || v.costo_total === 0)
+    ),
+    [viajes]
+  )
+
   // Generar viajes desde rutas programadas
   const handleGenerarViajes = () => {
     if (!quincena || !escenario?.id) {
@@ -164,8 +173,18 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
         escenarioId: escenario.id,
       },
       {
-        onSuccess: (viajesCreados) => {
-          toast.success(`${viajesCreados.length} viajes generados con costos asignados`)
+        onSuccess: (resultado) => {
+          const msg = resultado.viajesRecalculados > 0
+            ? `${resultado.viajes.length} viajes generados (${resultado.viajesRecalculados} costos auto-corregidos)`
+            : `${resultado.viajes.length} viajes generados con costos asignados`
+          toast.success(msg)
+
+          if (resultado.rutasSinCostos.length > 0) {
+            toast.warning(
+              `${resultado.rutasSinCostos.length} rutas sin costos: ${resultado.rutasSinCostos.join(', ')}. Verifica en PlaneacionLogi.`,
+              { duration: 10000 }
+            )
+          }
           refetchViajes()
         },
         onError: (error) => {
@@ -450,7 +469,17 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
                 isLoading={upsertViajeMutation.isPending}
               />
             )}
-            {estadisticas.pendientes === 0 && estadisticas.total > 0 && (
+            {estadisticas.pendientes === 0 && estadisticas.total > 0 && viajesConCostoCero.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-amber-600">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>{viajesConCostoCero.length} viajes con costo $0</span>
+                <Button size="sm" variant="outline" onClick={handleRecalcularCostos} disabled={recalcularCostosMutation.isPending}>
+                  {recalcularCostosMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
+                  Recalcular costos
+                </Button>
+              </div>
+            )}
+            {estadisticas.pendientes === 0 && estadisticas.total > 0 && viajesConCostoCero.length === 0 && (
               <Button size="sm" onClick={() => setConfirmValidar(true)}>
                 <CheckCircle className="mr-1 h-3 w-3" />
                 Validar
