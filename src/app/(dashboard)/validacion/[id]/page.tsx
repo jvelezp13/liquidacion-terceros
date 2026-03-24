@@ -150,10 +150,11 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
     return stats
   }, [viajes])
 
-  // Viajes ejecutados con costo $0 (bloquea validacion)
+  // Viajes liquidables con costo $0 (bloquea validacion)
   const viajesConCostoCero = useMemo(() =>
     viajes.filter((v) =>
-      v.estado === 'ejecutado' && (!v.costo_total || v.costo_total === 0)
+      (v.estado === 'ejecutado' || v.estado === 'variacion') &&
+      (!v.costo_total || v.costo_total === 0)
     ),
     [viajes]
   )
@@ -470,13 +471,9 @@ export default function ValidacionQuincenaPage({ params }: PageProps) {
               />
             )}
             {estadisticas.pendientes === 0 && estadisticas.total > 0 && viajesConCostoCero.length > 0 && (
-              <div className="flex items-center gap-2 text-sm text-amber-600">
+              <div className="flex items-center gap-1.5 text-sm text-amber-600">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>{viajesConCostoCero.length} viajes con costo $0</span>
-                <Button size="sm" variant="outline" onClick={handleRecalcularCostos} disabled={recalcularCostosMutation.isPending}>
-                  {recalcularCostosMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
-                  Recalcular costos
-                </Button>
+                <span>{viajesConCostoCero.length} viajes con costo $0 — recalcula costos para validar</span>
               </div>
             )}
             {estadisticas.pendientes === 0 && estadisticas.total > 0 && viajesConCostoCero.length === 0 && (

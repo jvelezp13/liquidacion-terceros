@@ -37,6 +37,12 @@ export interface ResultadoGeneracion {
   rutasSinCostos: string[]    // nombres de rutas que siguen en $0
 }
 
+const RESULTADO_VACIO: ResultadoGeneracion = {
+  viajes: [],
+  viajesRecalculados: 0,
+  rutasSinCostos: [],
+}
+
 /**
  * Hook optimizado para generar viajes desde rutas programadas.
  * Reduce de ~200 queries a ~5 queries usando batch operations.
@@ -69,7 +75,7 @@ export function useGenerarViajesDesdeRutas() {
         .eq('activo', true)
 
       if (vehiculosError) throw vehiculosError
-      if (!vehiculos || vehiculos.length === 0) return { viajes: [], viajesRecalculados: 0, rutasSinCostos: [] }
+      if (!vehiculos || vehiculos.length === 0) return RESULTADO_VACIO
 
       const vehiculoIds = vehiculos.map((v: { id: string }) => v.id)
 
@@ -83,7 +89,7 @@ export function useGenerarViajesDesdeRutas() {
         .eq('activo', true)
 
       if (rutasError) throw rutasError
-      if (!todasRutasProgramadas || todasRutasProgramadas.length === 0) return { viajes: [], viajesRecalculados: 0, rutasSinCostos: [] }
+      if (!todasRutasProgramadas || todasRutasProgramadas.length === 0) return RESULTADO_VACIO
 
       // Organizar rutas por vehículo (incluyendo dia_ciclo)
       const rutasPorVehiculo = new Map<string, Map<number, DatosRutaProgramada>>()
@@ -226,20 +232,20 @@ export function useGenerarViajesDesdeRutas() {
             fecha: fechaStr,
             ruta_programada_id: rutaId,
             estado: 'pendiente',
-            costo_combustible: costos.costoCombustible,
-            costo_peajes: costos.costoPeajes,
-            costo_flete_adicional: costos.costoAdicionales,
-            costo_pernocta: costos.costoPernocta,
+            costo_combustible: Math.round(costos.costoCombustible),
+            costo_peajes: Math.round(costos.costoPeajes),
+            costo_flete_adicional: Math.round(costos.costoAdicionales),
+            costo_pernocta: Math.round(costos.costoPernocta),
             requiere_pernocta: costos.requierePernocta,
             noches_pernocta: costos.nochesPernocta,
             km_recorridos: costos.kmRecorridos,
-            costo_total: costos.costoTotal,
+            costo_total: Math.round(costos.costoTotal),
             dia_ciclo: diaCiclo,
           })
         }
       }
 
-      if (viajesACrear.length === 0) return { viajes: [], viajesRecalculados: 0, rutasSinCostos: [] }
+      if (viajesACrear.length === 0) return RESULTADO_VACIO
 
       // ========================================
       // QUERY 5: INSERT batch de todos los viajes
@@ -249,10 +255,7 @@ export function useGenerarViajesDesdeRutas() {
         .insert(viajesACrear)
         .select()
 
-      if (insertError) {
-        console.error('Error al crear viajes:', insertError)
-        throw insertError
-      }
+      if (insertError) throw insertError
 
       const viajes = (viajesCreados || []) as LiqViajeEjecutado[]
 
