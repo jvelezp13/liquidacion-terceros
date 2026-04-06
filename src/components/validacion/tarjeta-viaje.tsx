@@ -120,6 +120,10 @@ export function TarjetaViaje({
   const handleCambiarEstado = (nuevoEstado: EstadoViaje) => {
     if (nuevoEstado === 'variacion') {
       setExpandido(true)
+    } else if (!viaje.ruta_programada_id && !viaje.ruta_variacion_id) {
+      // Viaje manual (sin ruta): solo cambiar estado, preservar costos cargados a mano
+      _onCambiarEstado(nuevoEstado)
+      setExpandido(false)
     } else {
       onCambiarEstadoConVariacion(nuevoEstado, null)
       setExpandido(false)

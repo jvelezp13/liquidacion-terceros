@@ -2,7 +2,7 @@ import JSZip from 'jszip'
 import type { LiquidacionConDeducciones } from '@/lib/hooks/use-liquidaciones'
 import type { ViajesPorLiquidacion, DesgloseRuta } from '@/lib/hooks/use-viajes-por-liquidacion'
 import type { LiqQuincena, LiqContratista } from '@/types'
-import { formatCOP } from './calcular-liquidacion'
+import { formatCOP, costoAdicionalViaje } from './calcular-liquidacion'
 import { formatearQuincena } from '@/lib/hooks/use-quincenas'
 
 // Helper para calcular km totales
@@ -230,7 +230,7 @@ export function generarComprobanteHTML(
     ` : ''}
   </div>
 
-  ${viajesData && viajesData.desgloseRutas.length > 0 ? `
+  ${viajesData && (viajesData.desgloseRutas.length > 0 || viajesData.viajesManuales.length > 0) ? `
   <div class="desglose-section">
     <h3>Desglose por Ruta</h3>
     <table class="desglose-table">
@@ -259,15 +259,27 @@ export function generarComprobanteHTML(
           <td class="number">${formatCOP(dr.subtotal)}</td>
         </tr>
         `).join('')}
+        ${viajesData.viajesManuales.map((v) => `
+        <tr style="color: #666; font-style: italic;">
+          <td>${v.destino || 'Manual'} <span style="font-size: 10px;">(${v.fecha})</span></td>
+          <td style="text-align: center">1</td>
+          <td class="number">${(v.km_recorridos || 0) > 0 ? (v.km_recorridos || 0).toLocaleString('es-CO') : '-'}</td>
+          <td class="number">${(v.costo_combustible || 0) > 0 ? formatCOP(v.costo_combustible || 0) : '-'}</td>
+          <td class="number">${(v.costo_peajes || 0) > 0 ? formatCOP(v.costo_peajes || 0) : '-'}</td>
+          <td class="number">${(v.costo_flete_adicional || 0) > 0 ? formatCOP(v.costo_flete_adicional || 0) : '-'}</td>
+          <td class="number">${(v.costo_pernocta || 0) > 0 ? formatCOP(v.costo_pernocta || 0) : '-'}</td>
+          <td class="number">${formatCOP(costoAdicionalViaje(v))}</td>
+        </tr>
+        `).join('')}
         <tr class="desglose-total">
           <td><strong>Total</strong></td>
-          <td style="text-align: center"><strong>${viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.viajesCount, 0)}</strong></td>
-          <td class="number"><strong>${calcularTotalKm(viajesData.desgloseRutas) > 0 ? calcularTotalKm(viajesData.desgloseRutas).toLocaleString('es-CO') : '-'}</strong></td>
-          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalCombustible, 0))}</strong></td>
-          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalPeajes, 0))}</strong></td>
-          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalAdicionales, 0))}</strong></td>
-          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.totalPernocta, 0))}${viajesData.totales.nochesPernocta > 0 ? ` (${viajesData.totales.nochesPernocta}n)` : ''}</strong></td>
-          <td class="number"><strong>${formatCOP(viajesData.desgloseRutas.reduce((s: number, dr: DesgloseRuta) => s + dr.subtotal, 0))}</strong></td>
+          <td style="text-align: center"><strong>${viajesData.totales.viajesEjecutados + viajesData.totales.viajesVariacion}</strong></td>
+          <td class="number"><strong>${(() => { const km = calcularTotalKm(viajesData.desgloseRutas) + viajesData.viajesManuales.reduce((s, v) => s + (v.km_recorridos || 0), 0); return km > 0 ? km.toLocaleString('es-CO') : '-' })()}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.totales.totalCombustible)}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.totales.totalPeajes)}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.totales.totalAdicionales)}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.totales.totalPernocta)}${viajesData.totales.nochesPernocta > 0 ? ` (${viajesData.totales.nochesPernocta}n)` : ''}</strong></td>
+          <td class="number"><strong>${formatCOP(viajesData.totales.totalCombustible + viajesData.totales.totalPeajes + viajesData.totales.totalAdicionales + viajesData.totales.totalPernocta)}</strong></td>
         </tr>
       </tbody>
     </table>

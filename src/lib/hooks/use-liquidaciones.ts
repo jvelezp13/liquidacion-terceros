@@ -416,9 +416,19 @@ export function useUpdateEstadoLiquidacion() {
       if (error) throw error
       return data as LiqLiquidacion
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['liquidaciones', variables.quincenaId] })
-      queryClient.invalidateQueries({ queryKey: ['liquidacion', variables.id] })
+    onSuccess: (data, variables) => {
+      // Actualizar cache in-place para evitar refetch que reordene la lista
+      queryClient.setQueryData<LiquidacionConDeducciones[]>(
+        ['liquidaciones', variables.quincenaId],
+        (oldData) => {
+          if (!oldData) return oldData
+          return oldData.map((liq) =>
+            liq.id === variables.id
+              ? { ...liq, estado: data.estado }
+              : liq
+          )
+        }
+      )
     },
   })
 }

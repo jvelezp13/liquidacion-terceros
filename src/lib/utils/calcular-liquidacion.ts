@@ -185,6 +185,13 @@ export function calcularTotalesViajes(viajes: LiqViajeEjecutado[]): TotalesViaje
 }
 
 /**
+ * Suma los costos adicionales de un viaje (combustible + peajes + flete adicional + pernocta)
+ */
+export function costoAdicionalViaje(viaje: Pick<LiqViajeEjecutado, 'costo_combustible' | 'costo_peajes' | 'costo_flete_adicional' | 'costo_pernocta'>): number {
+  return (viaje.costo_combustible || 0) + (viaje.costo_peajes || 0) + (viaje.costo_flete_adicional || 0) + (viaje.costo_pernocta || 0)
+}
+
+/**
  * Calcula la deducción de retención del 1%
  */
 export function calcularDeduccion1Porciento(subtotal: number): number {

@@ -16,7 +16,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCOP } from '@/lib/utils/calcular-liquidacion'
+import { formatCOP, costoAdicionalViaje } from '@/lib/utils/calcular-liquidacion'
 import {
   type LiquidacionConDeducciones,
   useUpdateEstadoLiquidacion,
@@ -74,6 +74,7 @@ export function LiquidacionRowExpandible({
       },
       {
         onSuccess: () => {
+          setIsOpen(false)
           toast.success('Liquidacion aprobada')
         },
         onError: (error) => {
@@ -92,6 +93,7 @@ export function LiquidacionRowExpandible({
       },
       {
         onSuccess: () => {
+          setIsOpen(false)
           toast.success('Liquidacion rechazada')
         },
         onError: (error) => {
@@ -195,7 +197,7 @@ export function LiquidacionRowExpandible({
                 <div className="rounded-lg border bg-background p-3">
                   <h4 className="font-medium text-sm mb-3">Desglose por Ruta</h4>
 
-                  {viajesData && viajesData.desgloseRutas.length > 0 ? (
+                  {viajesData && (viajesData.desgloseRutas.length > 0 || viajesData.viajesManuales.length > 0) ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
@@ -221,6 +223,23 @@ export function LiquidacionRowExpandible({
                               <td className="text-right py-1.5 font-mono">{formatCOP(ruta.totalAdicionales)}</td>
                               <td className="text-right py-1.5 font-mono">{formatCOP(ruta.totalPernocta)}</td>
                               <td className="text-right py-1.5 font-mono font-medium">{formatCOP(ruta.subtotal)}</td>
+                            </tr>
+                          ))}
+                          {viajesData.viajesManuales.map((viaje) => (
+                            <tr key={viaje.id} className="border-b border-dashed text-muted-foreground">
+                              <td className="py-1.5">
+                                <span className="italic">{viaje.destino || 'Manual'}</span>
+                                <span className="text-xs ml-1">({viaje.fecha})</span>
+                              </td>
+                              <td className="text-right py-1.5 font-mono">1</td>
+                              <td className="text-right py-1.5 font-mono">{(viaje.km_recorridos || 0).toFixed(0)}</td>
+                              <td className="text-right py-1.5 font-mono">{formatCOP(viaje.costo_combustible || 0)}</td>
+                              <td className="text-right py-1.5 font-mono">{formatCOP(viaje.costo_peajes || 0)}</td>
+                              <td className="text-right py-1.5 font-mono">{formatCOP(viaje.costo_flete_adicional || 0)}</td>
+                              <td className="text-right py-1.5 font-mono">{formatCOP(viaje.costo_pernocta || 0)}</td>
+                              <td className="text-right py-1.5 font-mono font-medium">
+                                {formatCOP(costoAdicionalViaje(viaje))}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
