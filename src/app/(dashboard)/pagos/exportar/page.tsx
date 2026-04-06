@@ -34,7 +34,7 @@ import { formatCOP } from '@/lib/utils/calcular-liquidacion'
 import { agruparPorContratista } from '@/lib/utils/generar-comprobante'
 import {
   generarFilasPayana,
-  generarCSV,
+  generarCSVPayana,
   descargarCSV,
   calcularTotalesPayana,
   CAMPOS_POR_MEDIO,
@@ -88,7 +88,7 @@ function ExportarPagosContent() {
 
   const handleDescargar = () => {
     if (!quincena || filasPayana.length === 0) return
-    const csv = generarCSV(medioPago, filasPayana)
+    const csv = generarCSVPayana(filasPayana)
     const nombreArchivo = `${medioPago}-${quincena.año}-P${quincena.numero_periodo}.csv`
     descargarCSV(csv, nombreArchivo)
     toast.success(`Archivo ${NOMBRES_MEDIOS[medioPago]} exportado`)
@@ -229,17 +229,12 @@ function ExportarPagosContent() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Identificacion</TableHead>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead>Comprobante</TableHead>
+                        <TableHead>ID Proveedor</TableHead>
+                        <TableHead>Nombre Proveedor</TableHead>
                         <TableHead className="text-right">Monto</TableHead>
+                        <TableHead>Fecha de Vto</TableHead>
                         <TableHead>Concepto</TableHead>
-                        <TableHead>Fecha Emision</TableHead>
-                        <TableHead>Banco</TableHead>
-                        <TableHead>Tipo Cuenta</TableHead>
-                        <TableHead>Num. Cuenta</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>WhatsApp</TableHead>
+                        <TableHead>Etiquetas</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -247,25 +242,16 @@ function ExportarPagosContent() {
                         <TableRow key={index}>
                           <TableCell>
                             <Badge variant="outline">
-                              {fila.tipoIdentificacion} {fila.numeroIdentificacion}
+                              {fila.idProveedor}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-medium">{fila.nombre}</TableCell>
-                          <TableCell className="font-mono text-xs">{fila.numeroComprobante}</TableCell>
+                          <TableCell className="font-medium">{fila.nombreProveedor}</TableCell>
                           <TableCell className="text-right font-mono font-bold">
                             {formatCOP(fila.monto)}
                           </TableCell>
+                          <TableCell className="text-sm">{fila.fechaVencimiento}</TableCell>
                           <TableCell className="text-sm">{fila.concepto}</TableCell>
-                          <TableCell className="text-sm">{fila.fechaEmision}</TableCell>
-                          <TableCell>{fila.nombreBanco || '-'}</TableCell>
-                          <TableCell>{fila.tipoCuentaBancaria || '-'}</TableCell>
-                          <TableCell className="font-mono">{fila.numeroCuentaBancaria || '-'}</TableCell>
-                          <TableCell className="text-sm">{fila.correoElectronico || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {fila.prefijoWhatsApp && fila.numeroWhatsApp
-                              ? `+${fila.prefijoWhatsApp} ${fila.numeroWhatsApp}`
-                              : '-'}
-                          </TableCell>
+                          <TableCell className="text-sm">{fila.etiquetas || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -280,7 +266,7 @@ function ExportarPagosContent() {
             <CardHeader>
               <CardTitle>Formato de Exportacion - {NOMBRES_MEDIOS[medioPago]}</CardTitle>
               <CardDescription>
-                Campos incluidos en el archivo CSV (15 columnas)
+                Campos incluidos en el archivo CSV (6 columnas)
               </CardDescription>
             </CardHeader>
             <CardContent>

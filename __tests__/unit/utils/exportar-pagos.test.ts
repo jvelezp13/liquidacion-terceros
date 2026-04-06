@@ -41,17 +41,15 @@ describe('exportar-pagos', () => {
       const filas = generarFilasPayana(consolidados, quincenaMock)
 
       expect(filas).toHaveLength(1)
-      expect(filas[0].numeroIdentificacion).toBe('12345678')
-      expect(filas[0].nombre).toBe('Juan Perez')
+      expect(filas[0].idProveedor).toBe('12345678')
+      expect(filas[0].nombreProveedor).toBe('Juan Perez')
       expect(filas[0].monto).toBe(500000)
-      expect(filas[0].tipoIdentificacion).toBe('CC')
-      expect(filas[0].tipoCuentaBancaria).toBe('Ahorros')
-      expect(filas[0].numeroCuentaBancaria).toBe('123456789')
-      expect(filas[0].nombreBanco).toBe('Bancolombia')
-      expect(filas[0].correoElectronico).toBe('juan@test.com')
+      expect(filas[0].concepto).toBeTruthy()
+      expect(filas[0].fechaVencimiento).toMatch(/^\d{2}\/\d{2}\/\d{4}$/)
+      expect(filas[0].etiquetas).toBe('')
     })
 
-    it('debe generar números de comprobante secuenciales', () => {
+    it('debe generar filas para multiples consolidados', () => {
       const consolidados: ConsolidadoContratista[] = [
         {
           contratista: {
@@ -77,152 +75,43 @@ describe('exportar-pagos', () => {
 
       const filas = generarFilasPayana(consolidados, quincenaMock)
 
-      expect(filas[0].numeroComprobante).toBe('202505Q1-001')
-      expect(filas[1].numeroComprobante).toBe('202505Q1-002')
-    })
-
-    it('debe parsear teléfono con prefijo +57', () => {
-      const consolidados: ConsolidadoContratista[] = [
-        {
-          contratista: {
-            id: 'c1',
-            nombre: 'Test',
-            numero_documento: '123',
-            tipo_documento: 'CC',
-            telefono: '+57 3001234567',
-          },
-          liquidaciones: [],
-          totalAPagar: 100000,
-        } as ConsolidadoContratista,
-      ]
-
-      const filas = generarFilasPayana(consolidados, quincenaMock)
-
-      expect(filas[0].prefijoWhatsApp).toBe('57')
-      expect(filas[0].numeroWhatsApp).toBe('3001234567')
-    })
-
-    it('debe parsear teléfono sin prefijo (asumir +57)', () => {
-      const consolidados: ConsolidadoContratista[] = [
-        {
-          contratista: {
-            id: 'c1',
-            nombre: 'Test',
-            numero_documento: '123',
-            tipo_documento: 'CC',
-            telefono: '3001234567',
-          },
-          liquidaciones: [],
-          totalAPagar: 100000,
-        } as ConsolidadoContratista,
-      ]
-
-      const filas = generarFilasPayana(consolidados, quincenaMock)
-
-      expect(filas[0].prefijoWhatsApp).toBe('57')
-      expect(filas[0].numeroWhatsApp).toBe('3001234567')
-    })
-
-    it('debe parsear teléfono con 57 al inicio', () => {
-      const consolidados: ConsolidadoContratista[] = [
-        {
-          contratista: {
-            id: 'c1',
-            nombre: 'Test',
-            numero_documento: '123',
-            tipo_documento: 'CC',
-            telefono: '573001234567',
-          },
-          liquidaciones: [],
-          totalAPagar: 100000,
-        } as ConsolidadoContratista,
-      ]
-
-      const filas = generarFilasPayana(consolidados, quincenaMock)
-
-      expect(filas[0].prefijoWhatsApp).toBe('57')
-      expect(filas[0].numeroWhatsApp).toBe('3001234567')
-    })
-
-    it('debe manejar campos vacíos correctamente', () => {
-      const consolidados: ConsolidadoContratista[] = [
-        {
-          contratista: {
-            id: 'c1',
-            nombre: 'Test',
-            numero_documento: '123',
-            tipo_documento: 'CC',
-            email: null,
-            telefono: null,
-            banco: null,
-            tipo_cuenta: null,
-            numero_cuenta: null,
-          },
-          liquidaciones: [],
-          totalAPagar: 100000,
-        } as ConsolidadoContratista,
-      ]
-
-      const filas = generarFilasPayana(consolidados, quincenaMock)
-
-      expect(filas[0].correoElectronico).toBe('')
-      expect(filas[0].nombreBanco).toBe('')
-      expect(filas[0].tipoCuentaBancaria).toBe('')
-      expect(filas[0].numeroCuentaBancaria).toBe('')
-      expect(filas[0].prefijoWhatsApp).toBe('')
-      expect(filas[0].numeroWhatsApp).toBe('')
+      expect(filas).toHaveLength(2)
+      expect(filas[0].idProveedor).toBe('111')
+      expect(filas[1].idProveedor).toBe('222')
+      expect(filas[0].monto).toBe(100000)
+      expect(filas[1].monto).toBe(200000)
     })
   })
 
   describe('generarCSVPayana', () => {
-    it('debe generar CSV con headers correctos', () => {
+    it('debe generar CSV con headers correctos del template 2026', () => {
       const filas: FilaPayana[] = [
         {
-          numeroIdentificacion: '12345678',
-          nombre: 'Juan Perez',
-          numeroComprobante: '202505Q1-001',
+          idProveedor: '12345678',
+          nombreProveedor: 'Juan Perez',
           monto: 500000,
-          tipoIdentificacion: 'CC',
-          tipoCuentaBancaria: 'Ahorros',
-          numeroCuentaBancaria: '123456789',
-          nombreBanco: 'Bancolombia',
-          correoElectronico: 'juan@test.com',
-          concepto: 'Q1 Mayo 2025',
-          fechaEmision: '22/01/2025',
           fechaVencimiento: '22/01/2025',
-          etiqueta: '',
-          prefijoWhatsApp: '57',
-          numeroWhatsApp: '3001234567',
+          concepto: 'Q1 Mayo 2025',
+          etiquetas: '',
         },
       ]
 
       const csv = generarCSVPayana(filas)
       const lineas = csv.split('\n')
 
-      expect(lineas[0]).toContain('PROVEEDOR Nro. identificacion')
-      expect(lineas[0]).toContain('PROVEEDOR Nombre')
-      expect(lineas[0]).toContain('Monto')
+      expect(lineas[0]).toBe('ID PROVEEDOR,NOMBRE PROVEEDOR,MONTO,FECHA DE VTO,CONCEPTO,ETIQUETAS')
       expect(lineas.length).toBe(2) // Header + 1 fila
     })
 
     it('debe escapar campos con comas correctamente', () => {
       const filas: FilaPayana[] = [
         {
-          numeroIdentificacion: '123',
-          nombre: 'Perez, Juan',
-          numeroComprobante: '001',
+          idProveedor: '123',
+          nombreProveedor: 'Perez, Juan',
           monto: 100000,
-          tipoIdentificacion: 'CC',
-          tipoCuentaBancaria: '',
-          numeroCuentaBancaria: '',
-          nombreBanco: '',
-          correoElectronico: '',
-          concepto: 'Test',
-          fechaEmision: '01/01/2025',
           fechaVencimiento: '01/01/2025',
-          etiqueta: '',
-          prefijoWhatsApp: '',
-          numeroWhatsApp: '',
+          concepto: 'Test',
+          etiquetas: '',
         },
       ]
 
@@ -231,41 +120,23 @@ describe('exportar-pagos', () => {
       expect(csv).toContain('"Perez, Juan"')
     })
 
-    it('debe generar CSV con múltiples filas', () => {
+    it('debe generar CSV con multiples filas', () => {
       const filas: FilaPayana[] = [
         {
-          numeroIdentificacion: '111',
-          nombre: 'Persona 1',
-          numeroComprobante: '001',
+          idProveedor: '111',
+          nombreProveedor: 'Persona 1',
           monto: 100000,
-          tipoIdentificacion: 'CC',
-          tipoCuentaBancaria: '',
-          numeroCuentaBancaria: '',
-          nombreBanco: '',
-          correoElectronico: '',
-          concepto: 'Test',
-          fechaEmision: '01/01/2025',
           fechaVencimiento: '01/01/2025',
-          etiqueta: '',
-          prefijoWhatsApp: '',
-          numeroWhatsApp: '',
+          concepto: 'Test',
+          etiquetas: '',
         },
         {
-          numeroIdentificacion: '222',
-          nombre: 'Persona 2',
-          numeroComprobante: '002',
+          idProveedor: '222',
+          nombreProveedor: 'Persona 2',
           monto: 200000,
-          tipoIdentificacion: 'CC',
-          tipoCuentaBancaria: '',
-          numeroCuentaBancaria: '',
-          nombreBanco: '',
-          correoElectronico: '',
-          concepto: 'Test',
-          fechaEmision: '01/01/2025',
           fechaVencimiento: '01/01/2025',
-          etiqueta: '',
-          prefijoWhatsApp: '',
-          numeroWhatsApp: '',
+          concepto: 'Test',
+          etiquetas: '',
         },
       ]
 
@@ -282,38 +153,20 @@ describe('exportar-pagos', () => {
     it('debe calcular totales correctamente', () => {
       const filas: FilaPayana[] = [
         {
-          numeroIdentificacion: '111',
-          nombre: 'P1',
-          numeroComprobante: '001',
+          idProveedor: '111',
+          nombreProveedor: 'P1',
           monto: 100000,
-          tipoIdentificacion: 'CC',
-          tipoCuentaBancaria: '',
-          numeroCuentaBancaria: '',
-          nombreBanco: '',
-          correoElectronico: '',
-          concepto: 'Test',
-          fechaEmision: '01/01/2025',
           fechaVencimiento: '01/01/2025',
-          etiqueta: '',
-          prefijoWhatsApp: '',
-          numeroWhatsApp: '',
+          concepto: 'Test',
+          etiquetas: '',
         },
         {
-          numeroIdentificacion: '222',
-          nombre: 'P2',
-          numeroComprobante: '002',
+          idProveedor: '222',
+          nombreProveedor: 'P2',
           monto: 250000,
-          tipoIdentificacion: 'CC',
-          tipoCuentaBancaria: '',
-          numeroCuentaBancaria: '',
-          nombreBanco: '',
-          correoElectronico: '',
-          concepto: 'Test',
-          fechaEmision: '01/01/2025',
           fechaVencimiento: '01/01/2025',
-          etiqueta: '',
-          prefijoWhatsApp: '',
-          numeroWhatsApp: '',
+          concepto: 'Test',
+          etiquetas: '',
         },
       ]
 
@@ -323,7 +176,7 @@ describe('exportar-pagos', () => {
       expect(totales.totalMonto).toBe(350000)
     })
 
-    it('debe retornar ceros para array vacío', () => {
+    it('debe retornar ceros para array vacio', () => {
       const totales = calcularTotalesPayana([])
 
       expect(totales.totalContratistas).toBe(0)
