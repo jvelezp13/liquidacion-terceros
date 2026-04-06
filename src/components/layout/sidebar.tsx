@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   Users,
@@ -11,7 +12,9 @@ import {
   FileText,
   CreditCard,
   History,
-  BarChart3
+  BarChart3,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react'
 
 // Flujo de trabajo principal
@@ -36,14 +39,27 @@ const configNavigation = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="flex h-full w-64 flex-col bg-blue-950">
-      {/* Logo */}
-      <div className="flex h-16 items-center px-6">
-        <h1 className="text-xl font-bold text-white">
-          Liquidación Terceros
-        </h1>
+    <div className={cn(
+      "flex h-full flex-col bg-blue-950 transition-all duration-200",
+      collapsed ? "w-16" : "w-64"
+    )}>
+      {/* Logo + Toggle */}
+      <div className="flex h-16 items-center justify-between px-3">
+        {!collapsed && (
+          <h1 className="text-xl font-bold text-white pl-3">
+            Liquidación Terceros
+          </h1>
+        )}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="rounded-md p-1.5 text-blue-300 hover:bg-blue-900 hover:text-white transition-colors"
+          title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+        >
+          {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+        </button>
       </div>
 
       {/* Navegación principal - Flujo de trabajo */}
@@ -56,15 +72,17 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              title={collapsed ? item.name : undefined}
               className={cn(
                 'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-blue-900 text-white'
-                  : 'text-blue-200 hover:bg-blue-900 hover:text-white'
+                  : 'text-blue-200 hover:bg-blue-900 hover:text-white',
+                collapsed && 'justify-center px-0'
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />
-              {item.name}
+              {!collapsed && item.name}
             </Link>
           )
         })}
@@ -72,9 +90,11 @@ export function Sidebar() {
 
       {/* Análisis */}
       <div className="border-t border-blue-800 px-3 py-4 space-y-1">
-        <p className="px-3 text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
-          Análisis
-        </p>
+        {!collapsed && (
+          <p className="px-3 text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
+            Análisis
+          </p>
+        )}
         {analysisNavigation.map((item) => {
           const isActive = pathname === item.href ||
             pathname.startsWith(item.href)
@@ -83,15 +103,17 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              title={collapsed ? item.name : undefined}
               className={cn(
                 'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-blue-900 text-white'
-                  : 'text-blue-200 hover:bg-blue-900 hover:text-white'
+                  : 'text-blue-200 hover:bg-blue-900 hover:text-white',
+                collapsed && 'justify-center px-0'
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />
-              {item.name}
+              {!collapsed && item.name}
             </Link>
           )
         })}
@@ -107,15 +129,17 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              title={collapsed ? item.name : undefined}
               className={cn(
                 'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-blue-900 text-white'
-                  : 'text-blue-200 hover:bg-blue-900 hover:text-white'
+                  : 'text-blue-200 hover:bg-blue-900 hover:text-white',
+                collapsed && 'justify-center px-0'
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />
-              {item.name}
+              {!collapsed && item.name}
             </Link>
           )
         })}
