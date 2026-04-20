@@ -18,6 +18,14 @@ export function formatFechaCorta(date: Date | string): string {
 }
 
 /**
+ * Formatea fecha como DD/MM/YYYY: "15/01/2025"
+ */
+export function formatFechaDDMMYYYY(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  return format(d, "dd/MM/yyyy")
+}
+
+/**
  * Formatea fecha completa con día de semana: "Lunes 15 de enero 2025"
  */
 export function formatFechaCompleta(date: Date | string): string {
