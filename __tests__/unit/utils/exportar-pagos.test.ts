@@ -83,15 +83,26 @@ describe('generarFilasPayana', () => {
     expect(fila.numeroWhatsApp).toBe('')
   })
 
-  it('genera numero de comprobante secuencial con año, mes y numero_periodo', () => {
+  it('genera numero de comprobante secuencial con año y numero_periodo', () => {
     const consolidados: ConsolidadoContratista[] = [
       { contratista: contratistaCompleto, liquidaciones: [], totalAPagar: 100 } as unknown as ConsolidadoContratista,
       { contratista: { ...contratistaCompleto, id: 'c2' }, liquidaciones: [], totalAPagar: 200 } as unknown as ConsolidadoContratista,
     ]
 
     const filas = generarFilasPayana(consolidados, quincenaMock)
-    expect(filas[0].numeroComprobante).toBe('202605P07-001')
-    expect(filas[1].numeroComprobante).toBe('202605P07-002')
+    expect(filas[0].numeroComprobante).toBe('2026-P07-001')
+    expect(filas[1].numeroComprobante).toBe('2026-P07-002')
+  })
+
+  it('no incluye null cuando mes o quincena son null (modelo de periodos flexibles)', () => {
+    const quincenaFlex = { ...quincenaMock, mes: null, quincena: null } as unknown as LiqQuincena
+    const consolidados: ConsolidadoContratista[] = [
+      { contratista: contratistaCompleto, liquidaciones: [], totalAPagar: 100 } as unknown as ConsolidadoContratista,
+    ]
+
+    const [fila] = generarFilasPayana(consolidados, quincenaFlex)
+    expect(fila.numeroComprobante).toBe('2026-P07-001')
+    expect(fila.numeroComprobante).not.toContain('null')
   })
 })
 

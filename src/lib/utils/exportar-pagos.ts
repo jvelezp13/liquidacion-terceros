@@ -68,10 +68,9 @@ function normalizarTipoCuenta(tipo: string | null | undefined): string {
 }
 
 function generarNumeroComprobante(quincena: LiqQuincena, indice: number): string {
-  const mes = String(quincena.mes).padStart(2, '0')
   const periodo = String(quincena.numero_periodo).padStart(2, '0')
   const secuencial = String(indice + 1).padStart(3, '0')
-  return `${quincena.año}${mes}P${periodo}-${secuencial}`
+  return `${quincena.año}-P${periodo}-${secuencial}`
 }
 
 export function generarFilasPayana(
